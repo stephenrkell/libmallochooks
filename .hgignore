@@ -22,3 +22,8 @@
 .*/split-objs/build/.*
 .*/asm-split-test[^/]*/build/.*
 .*/CVS/[A-Z].*
+.*/lex.yy.c
+.*/y.tab.c
+Backup/nitpicker/trunk/contrib/l4/tool/dice/src/dice
+grammars/big-dog/big-dog
+grammars/lex-yacc-hello-am/calc
