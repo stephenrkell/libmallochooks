@@ -30,3 +30,5 @@ grammars/modified-am-string/calc
 grammars/big-dog/big-dog
 grammars/lex-yacc-hello-am/calc
 grammars/datascript-.*/.*/.*\.java$
+Experiments/latex2bnf/knit\.hs.*
+
