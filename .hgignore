@@ -10,6 +10,7 @@
 .*\.tar\.bz2$
 .*\.tar\.gz$
 .*~$
+.*/~[^/]*$
 .*\.flc$
 .*\.orig$
 .*\.rej$
@@ -25,6 +26,7 @@
 .*/CVS/[A-Z].*
 .*/lex.yy.c
 .*/y.tab.c
+.*\.hi$
 Backup/nitpicker/trunk/contrib/l4/tool/dice/src/dice
 grammars/modified-am-string/calc
 grammars/big-dog/big-dog
