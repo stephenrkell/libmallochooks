@@ -27,6 +27,8 @@
 .*/lex.yy.c
 .*/y.tab.c
 .*\.hi$
+.*Lexer.py
+.*Parser.py
 Backup/nitpicker/trunk/contrib/l4/tool/dice/src/dice
 grammars/modified-am-string/calc
 grammars/big-dog/big-dog
