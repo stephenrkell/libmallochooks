@@ -48,3 +48,6 @@ dwarf/readelf-parser/readelf.tokens$
 ^dwarf/libdwarfpp/libdwarf\.h-hacked$
 .*_wrap\.c$
 .*_wrap\.cxx$
+Experiments/gtk-adaptor/gtk-theme-switch-1\.2-on-2/test_rep_man_sizes_12
+Experiments/gtk-adaptor/gtk-theme-switch-1\.2-on-2/test_rep_man_sizes_20
+
