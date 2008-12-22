@@ -51,3 +51,8 @@ dwarf/readelf-parser/readelf.tokens$
 Experiments/gtk-adaptor/gtk-theme-switch-1\.2-on-2/test_rep_man_sizes_12
 Experiments/gtk-adaptor/gtk-theme-switch-1\.2-on-2/test_rep_man_sizes_20
 ^Experiments/gtk-adaptor/gtk-theme-switch-1\.2-on-2/.*_accessors\.c
+^Experiments/gtk-adaptor/gtk-theme-switch-1\.2-on-2/intermed/.*
+^Experiments/gtk-adaptor/gtk-api-changes/gtk.*
+^Experiments/gtk-adaptor/gtk-theme-switch-1\.2-on-2/rep_man_forms\.h
+^Experiments/gtk-adaptor/gtk-theme-switch-1\.2-on-2/wrappers\.test-out
+
