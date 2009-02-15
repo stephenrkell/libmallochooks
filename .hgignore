@@ -58,4 +58,5 @@ Experiments/gtk-adaptor/gtk-theme-switch-1\.2-on-2/test_rep_man_sizes_20
 ^Experiments/gtk-adaptor/gtk-theme-switch-1\.2-on-2/switch
 ^Experiments/gtk-adaptor/gtk-theme-switch-1\.2-on-2/min-switch
 core\.[0-9]*$
-^elf/hex-dump-tmp
+^elf/hex-dump-tmp$
+^Experiments/test-code/glib-2\.0-type-names/test$
