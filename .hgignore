@@ -67,8 +67,6 @@ core\.[0-9]*$
 .*Parser\.java$
 .*/profile.dat$
 ^cake/Archived/examples/foobarbaz/foo$
-^cake/cake(Cpp|Py)\.(g|tokens)$
-^cake/cake(Cpp|Py)(Lexer|Parser).(py|c|h)$
 ^tinutils/contrib/binutils$
 ^tinutils/contrib/binutils-cvs$
 ^tinutils/contrib/touchfile$
@@ -80,3 +78,10 @@ core\.[0-9]*$
 ^Experiments/gtk-adaptor/gtk-theme-switch-1.2-on-2/min-switch.objdump$
 ^Experiments/gtk-adaptor/gtk-theme-switch-1.2-on-2/switch-1.2$
 ^hg.prof$
+^cake/src/parser/
+^cake/src/parser/cake(Java|Cpp|Py)\.(g|tokens)$
+^cake/src/parser/cake(Java|Cpp|Py)(Lexer|Parser).(py|c|h|java)$
+^cake/src/parser/.*\.h$
+^cake/src/gcjh_generated/.*
+^cake/tmp-cake-patch.diff$
+^cake/src/cake$
