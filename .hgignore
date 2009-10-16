@@ -113,3 +113,4 @@ core\.[0-9]*$
 ^cake/src/stringtemplate-3\.2\.jar$
 ^rox-filer-2\.7\.1/ROX-Filer/build/main\.gccxml\.xml$
 /makefile$
+^dwarf/libdwarfpp/dwarfpp_test$
