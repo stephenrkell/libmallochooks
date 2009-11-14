@@ -114,3 +114,5 @@ core\.[0-9]*$
 ^rox-filer-2\.7\.1/ROX-Filer/build/main\.gccxml\.xml$
 /makefile$
 ^dwarf/libdwarfpp/dwarfpp_test$
+^dwarf/libdwarfpp/Old/dwarfpp_test$
+^dwarf/libdwarfpp/Old/libdwarf\.h-hacked$
