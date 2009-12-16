@@ -116,3 +116,4 @@ core\.[0-9]*$
 ^dwarf/libdwarfpp/dwarfpp_test$
 ^dwarf/libdwarfpp/Old/dwarfpp_test$
 ^dwarf/libdwarfpp/Old/libdwarf\.h-hacked$
+/gcjh_generated/
