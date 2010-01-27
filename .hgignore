@@ -117,3 +117,12 @@ core\.[0-9]*$
 ^dwarf/libdwarfpp/Old/dwarfpp_test$
 ^dwarf/libdwarfpp/Old/libdwarf\.h-hacked$
 /gcjh_generated/
+^cake\.gcj/.*
+^cake/src/include/cake/.*
+^cake/src/include/org/.*
+^Experiments/onward/sample1$
+^cake/cakePy-font\.g$
+^cake/src/java/include/.*
+^dwarf/libdwarfpp/examples/dwarfppdump$
+^dwarf/libdwarfpp/examples/query$
+^elf/rewrite_addends$
