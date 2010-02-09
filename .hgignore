@@ -126,3 +126,8 @@ core\.[0-9]*$
 ^dwarf/libdwarfpp/examples/dwarfppdump$
 ^dwarf/libdwarfpp/examples/query$
 ^elf/rewrite_addends$
+^dwarf/libdwarfpp/tests/test-[0-9]$
+^dwarf/libdwarfpp/tests/test-[0-9]-input$
+cake-generated.mk$
+^cake/examples/.*\.o_wrap.cpp
+^dwarf/libdwarfpp/examples/[^\.]*$
