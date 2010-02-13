@@ -129,5 +129,8 @@ core\.[0-9]*$
 ^dwarf/libdwarfpp/tests/test-[0-9]$
 ^dwarf/libdwarfpp/tests/test-[0-9]-input$
 cake-generated.mk$
-^cake/examples/.*\.o_wrap.cpp
+^cake/examples/.*\.o_wrap.cpp$
+.*\.o\.hpp$
+^cake/examples/.*_wrap.cpp$
+^cake/examples/[^\.]*$
 ^dwarf/libdwarfpp/examples/[^\.]*$
