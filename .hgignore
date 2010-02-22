@@ -132,5 +132,5 @@ cake-generated.mk$
 ^cake/examples/.*\.o_wrap.cpp$
 .*\.o\.hpp$
 ^cake/examples/.*_wrap.cpp$
-^cake/examples/.*/[^\.]*$
-^dwarf/libdwarfpp/examples/[^\.]*$
+^cake/examples/.*/[-a-z0-9_]*$
+^dwarf/libdwarfpp/examples/[-a-z0-9_]*$
