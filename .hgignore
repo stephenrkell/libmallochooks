@@ -134,3 +134,5 @@ cake-generated.mk$
 ^cake/examples/.*_wrap.cpp$
 ^cake/examples/.*/[-a-z0-9_]*$
 ^dwarf/libdwarfpp/examples/[-a-z0-9_]*$
+^dwarf/libdwarfpp/include/dwarfpp/encap_adt\.hpp$
+^dwarf/libdwarfpp/include/dwarfpp/abstract\.hpp$
