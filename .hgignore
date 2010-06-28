@@ -158,3 +158,4 @@ cake-generated.mk$
 ^dwarfpython/src/parser/parathon\.l\.h$
 ^dwarfpython/src/parser/parathon\.yy\.cc$
 ^dwarfpython/src/parser/parathon\.yy\.hh$
+^dwarf/libdwarfpp/.*\.inc$
