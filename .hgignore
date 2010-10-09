@@ -179,3 +179,5 @@ cake-generated.mk$
 ^libdwarfpp/include/dwarfpp/encap_adt\.hpp$
 ^libdwarfpp/include/dwarfpp/encap_hdr_gen\.inc$
 ^libdwarfpp/src/encap_src_gen\.inc$
+.*-moved$
+^Experiments/vtable-abi/test1$
