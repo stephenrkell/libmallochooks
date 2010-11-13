@@ -181,3 +181,6 @@ cake-generated.mk$
 ^libdwarfpp/src/encap_src_gen\.inc$
 .*-moved$
 ^Experiments/vtable-abi/test1$
+^Experiments/test-code/boost-optional/test$
+^Experiments/thesis-styles/getImgDom4J$
+^Experiments/thesis-styles/getimg-htmlcxx3$
