@@ -182,3 +182,7 @@ cake-generated.mk$
 .*-moved$
 ^Experiments/vtable-abi/test1$
 ^Experiments/cake-blackboard/blackboard$
+^Experiments/test-code/boost-optional/test$
+^Experiments/thesis-styles/getImgDom4J$
+^Experiments/thesis-styles/getimg-htmlcxx3$
+^Experiments/thesis-styles/getImgHTMLParser$
