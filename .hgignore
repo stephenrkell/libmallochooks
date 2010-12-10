@@ -181,3 +181,4 @@ cake-generated.mk$
 ^libdwarfpp/src/encap_src_gen\.inc$
 .*-moved$
 ^Experiments/vtable-abi/test1$
+^Experiments/cake-blackboard/blackboard$
