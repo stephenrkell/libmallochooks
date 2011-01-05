@@ -186,3 +186,6 @@ cake-generated.mk$
 ^Experiments/thesis-styles/getImgDom4J$
 ^Experiments/thesis-styles/getimg-htmlcxx3$
 ^Experiments/thesis-styles/getImgHTMLParser$
+^Experiments/thesis-styles/SimpleHTMLParser$
+^Experiments/thesis-styles/simple-htmlcxx3$
+
