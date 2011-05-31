@@ -67,7 +67,7 @@ static void *(*old_realloc_hook)(void *ptr, size_t size, const void *caller);
 		
 /* Override initializing hook from the C library. */
 void (*__malloc_initialize_hook) (void) = my_init_hook;
-extern void (*__prev_malloc_initialize_hook) (void) __attribute__((weak));
+extern void __prev_malloc_initialize_hook (void) __attribute__((weak)); /* NOT a pointer to it */
 
 /* High-level hook prototypes */
 static void pre_alloc(size_t *p_size, const void *caller);
