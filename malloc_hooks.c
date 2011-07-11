@@ -7,12 +7,9 @@
  * Copyright (c) Free Software Foundation and released under the GNU Free
  * Documentation License.
  *
- * It provides the user with a more abstract selection
- * of hook primitives. These extensions are
- *
- *   Copyright (c) 2009--2011, Stephen Kell <srk31@srcf.ucam.org>
- *
- * and released by him into the public domain. I have no idea how to license
+ * It provides the user with a more abstract selection of hook primitives. 
+ * These extensions were done by Stephen Kell <srk31@srcf.ucam.org>,
+ * and are released into the public domain. I have no idea how to license
  * this file as a whole, but I invite anyone wishing to use it to appropriately
  * respect the FSF copyright.
  *
