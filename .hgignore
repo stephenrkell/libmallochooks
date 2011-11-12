@@ -189,3 +189,5 @@ cake-generated.mk$
 ^Experiments/thesis-styles/SimpleHTMLParser$
 ^Experiments/thesis-styles/simple-htmlcxx3$
 ^Experiments/largest-mmap/test$
+^antlr-m4/example.*\.g$
+^antlr-m4/.*\.h$
