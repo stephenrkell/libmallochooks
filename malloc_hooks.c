@@ -67,6 +67,7 @@ void (*__malloc_initialize_hook) (void) = my_init_hook;
 extern void __prev_malloc_initialize_hook (void) __attribute__((weak)); /* NOT a pointer to it */
 
 /* High-level hook prototypes */
+static void init_hook(void);
 static void pre_alloc(size_t *p_size, const void *caller);
 static void post_successful_alloc(void *begin, size_t modified_size, const void *caller);
 static void pre_nonnull_free(void *ptr, size_t freed_usable_size);
@@ -86,6 +87,8 @@ my_init_hook (void)
 	old_free_hook = __free_hook;
 	old_memalign_hook = __memalign_hook;
 	old_realloc_hook = __realloc_hook;
+	/* do our initialization */
+	init_hook();
 	/* install our hooks */
 	__malloc_hook = my_malloc_hook;
 	__free_hook = my_free_hook;
@@ -103,7 +106,9 @@ my_malloc_hook (size_t size, const void *caller)
 	__memalign_hook = old_memalign_hook;
 	__realloc_hook = old_realloc_hook;
 	/* Call recursively */
-	/*printf ("calling malloc (%u)\n", (unsigned int) size);*/
+	#ifdef TRACE_MALLOC_HOOKS
+	printf ("calling malloc (%u)\n", (unsigned int) size);
+	#endif
 	size_t modified_size = size;
 	pre_alloc(&modified_size, caller);
 	result = malloc (modified_size);
@@ -133,7 +138,9 @@ my_free_hook (void *ptr, const void *caller)
 	__memalign_hook = old_memalign_hook;
 	__realloc_hook = old_realloc_hook;
 	/* Call recursively */
-	/*if (ptr != NULL) printf ("freeing pointer %p\n", ptr);*/
+	#ifdef TRACE_MALLOC_HOOKS
+	if (ptr != NULL) printf ("freeing pointer %p\n", ptr);
+	#endif 
 	if (ptr != NULL) pre_nonnull_free(ptr, malloc_usable_size(ptr));
 	free (ptr);
 	if (ptr != NULL) post_nonnull_free(ptr);
@@ -143,7 +150,9 @@ my_free_hook (void *ptr, const void *caller)
 	old_memalign_hook = __memalign_hook;
 	old_realloc_hook = __realloc_hook;
 	/* printf might call free, so protect it too. */
-	/*printf ("freed pointer %p\n", ptr);*/
+	#ifdef TRACE_MALLOC_HOOKS
+	printf ("freed pointer %p\n", ptr);
+	#endif
 	/* Restore our own hooks */
 	__malloc_hook = my_malloc_hook;
 	__free_hook = my_free_hook;
@@ -171,7 +180,9 @@ my_memalign_hook (size_t alignment, size_t size, const void *caller)
 	old_memalign_hook = __memalign_hook;
 	old_realloc_hook = __realloc_hook;
 	/* printf might call free, so protect it too. */
-	/*printf ("memalign (%u, %u) returns %p\n", (unsigned) alignment, (unsigned) size, result);*/
+	#ifdef TRACE_MALLOC_HOOKS
+	printf ("memalign (%u, %u) returns %p\n", (unsigned) alignment, (unsigned) size, result);
+	#endif
 	/* Restore our own hooks */
 	__malloc_hook = my_malloc_hook;
 	__free_hook = my_free_hook;
@@ -244,8 +255,10 @@ my_realloc_hook(void *ptr, size_t size, const void *caller)
 	old_memalign_hook = __memalign_hook;
 	old_realloc_hook = __realloc_hook;
 	/* printf might call free, so protect it too. */
-	/* printf ("realigned pointer %p to %p (requested size %u, modified size %u)\n", ptr, result,  
-	  (unsigned) size, (unsigned) modified_size); */
+	#ifdef TRACE_MALLOC_HOOKS
+	printf ("realigned pointer %p to %p (requested size %u, modified size %u)\n", ptr, result,  
+	  (unsigned) size, (unsigned) modified_size);
+	#endif
 	/* Restore our own hooks */
 	__malloc_hook = my_malloc_hook;
 	__free_hook = my_free_hook;
