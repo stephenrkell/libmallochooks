@@ -1,4 +1,6 @@
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 /* This file is a re-usable set of malloc hooks for glibc, intended to
  * enable easier creation of hooks. 
