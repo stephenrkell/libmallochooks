@@ -63,6 +63,13 @@ static void *(*old_malloc_hook) (size_t, const void *);
 static void (*old_free_hook) (void*, const void *);
 static void *(*old_memalign_hook) (size_t alignment, size_t size, const void *caller);
 static void *(*old_realloc_hook)(void *ptr, size_t size, const void *caller);
+
+/* Declare the variables that point to the active hooks. This isn't necessary
+ * on glibc... adding it here as a precursor to supporting more platforms. */
+extern void *(*__malloc_hook) (size_t, const void *) __attribute__((weak));
+extern void (*__free_hook) (void*, const void *) __attribute__((weak));
+extern void *(*__memalign_hook) (size_t alignment, size_t size, const void *caller) __attribute__((weak));
+extern void *(*__realloc_hook)(void *ptr, size_t size, const void *caller) __attribute__((weak));
 		
 /* Override initializing hook from the C library. */
 void (*__malloc_initialize_hook) (void) = my_init_hook;
