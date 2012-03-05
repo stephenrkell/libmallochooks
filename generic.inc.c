@@ -1,3 +1,12 @@
+/* Prototypes for the generic library-level hooks.
+ * These are based on the glibc hooks. */
+static void generic_initialize_hook(void);
+static void *generic_malloc_hook(size_t size, const void *caller);
+static void generic_free_hook(void *ptr, const void *caller);
+static void *generic_memalign_hook(size_t alignment, size_t size, const void *caller);
+static void *generic_realloc_hook(void *ptr, size_t size, const void *caller);
+
+/* The next-in-chain hooks. */
 extern void __next_initialize_hook(void) __attribute__((weak));
 extern void *__next_malloc_hook(size_t size, const void *caller)__attribute__((weak));
 extern void __next_free_hook(void *ptr, const void *caller) __attribute__((weak));
@@ -17,14 +26,14 @@ generic_malloc_hook(size_t size, const void *caller)
 {
 	void *result;
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("calling malloc (%u)\n", (unsigned int) size);
+	printf ("calling malloc (%zu)\n", size);
 	#endif
 	/* Call recursively */
 	size_t modified_size = size;
 	pre_alloc(&modified_size, caller);
 	
 	if (__next_malloc_hook) result = __next_malloc_hook(size, caller);
-	else result = malloc(modified_size);
+	else result = __real_malloc(modified_size);
 	
 	if (result) post_successful_alloc(result, modified_size, caller);
 	#ifdef TRACE_MALLOC_HOOKS
@@ -43,7 +52,7 @@ generic_free_hook(void *ptr, const void *caller)
 	if (ptr != NULL) pre_nonnull_free(ptr, malloc_usable_size(ptr));
 	
 	if (__next_free_hook) __next_free_hook(ptr, caller);
-	else free (ptr);
+	else __real_free(ptr);
 	
 	if (ptr != NULL) post_nonnull_free(ptr);
 	#ifdef TRACE_MALLOC_HOOKS
@@ -59,11 +68,11 @@ generic_memalign_hook (size_t alignment, size_t size, const void *caller)
 	pre_alloc(&modified_size, caller);
 	
 	if (__next_memalign_hook) result = __next_memalign_hook(alignment, modified_size, caller);
-	else result = memalign(alignment, modified_size);
+	else result = __real_memalign(alignment, modified_size);
 	
 	if (result) post_successful_alloc(result, modified_size, caller);
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("memalign (%u, %u) returns %p\n", (unsigned) alignment, (unsigned) size, result);
+	printf ("memalign (%zu, %zu) returns %p\n", alignment, size, result);
 	#endif
 	return result;
 }
@@ -104,7 +113,7 @@ generic_realloc_hook(void *ptr, size_t size, const void *caller)
 	}
 
 	if (__next_realloc_hook) result = __next_realloc_hook(ptr, modified_size, caller);
-	else result = realloc(ptr, modified_size);
+	else result = __real_realloc(ptr, modified_size);
 	
 	if (ptr == NULL)
 	{
@@ -123,8 +132,8 @@ generic_realloc_hook(void *ptr, size_t size, const void *caller)
 	}
 
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("realigned pointer %p to %p (requested size %u, modified size %u)\n", ptr, result,  
-	  (unsigned) size, (unsigned) modified_size);
+	printf ("realigned pointer %p to %p (requested size %zu, modified size %zu)\n", ptr, result,  
+	  size, modified_size);
 	#endif
 	return result;
 }

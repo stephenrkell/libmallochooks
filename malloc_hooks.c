@@ -7,5 +7,6 @@
 /* We are the toplevel hook. */
 void (*__malloc_initialize_hook)(void) = glibc_initialize_hook;
 
-/* This hook was not provided previously. */
-static void initialize_hook(void) {}
+/* We changed the name of init_hook. */
+static void init_hook(void); 
+static void initialize_hook(void) { init_hook(); }

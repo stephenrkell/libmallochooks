@@ -33,6 +33,14 @@ static void generic_free_hook(void *ptr, const void *caller);
 static void *generic_memalign_hook(size_t alignment, size_t size, const void *caller);
 static void *generic_realloc_hook(void *ptr, size_t size, const void *caller);
 
+/* The generic hooks call into __real_malloc et al. In the glibc case, 
+ * since we never mess with symbol resolution, we just define these to be
+ * aliases of malloc et al. */
+static void *__real_malloc(size_t size) __attribute__ ((weakref ("malloc")));
+static void __real_free(void *ptr) __attribute__ ((weakref ("free")));
+static void *__real_memalign(size_t alignment, size_t size) __attribute__ ((weakref ("memalign")));
+static void *__real_realloc(void *ptr, size_t size) __attribute__ ((weakref ("realloc")));
+
 /* Map the glibc hooks onto the generic hooks.
  * Since the glibc hooks are triggered by indirect calls through the globals above,
  * we have to protect in-hook calls from infinite regress. We do this by restoring
