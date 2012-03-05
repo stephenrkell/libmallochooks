@@ -1,0 +1,62 @@
+BUILD_MALLOC_HOOKS ?= noop
+MALLOC_HOOKS_METHOD ?= glibc
+
+# add the path of this makefile to vpath
+# (since we assume we're being included from the build dir)
+THIS_MAKEFILE := $(lastword $(MAKEFILES_LIST))
+
+vpath %.c  $(dir $(realpath $(THIS_MAKEFILE)))
+vpath %.o  $(dir $(realpath $(THIS_MAKEFILE)))
+vpath %.a  $(dir $(realpath $(THIS_MAKEFILE)))
+vpath %.so $(dir $(realpath $(THIS_MAKEFILE)))
+
+CFLAGS += -I$(dir $(realpath $(THIS_MAKEFILE)))
+
+default::
+
+libmallochooks.a: $(patsubst %,%.o,$(BUILD_MALLOC_HOOKS))
+	ar r "$@" $^ 
+
+libmallochooks.so: $(patsubst %,%.o,$(BUILD_MALLOC_HOOKS))
+	$(CC) -shared -o "$@" $+
+
+# We understand at least three hooking methods.
+# 1. Use glibc's hook infrastructure
+# 2. LD_PRELOAD a shared library containing malloc, free et al. 
+# 3. static-link an object defining malloc, free et al.
+#
+# Option 2 is tricky because we have to use dlsym to get the
+# underlying malloc, free etc.. And dlsym calls malloc! To
+# get around this, we include a configurable chunk of bss that
+# supports an early_malloc, early_free etc.. Only when our
+# dlsym has succeeded do we switch to using the real malloc.
+
+ifeq ($(MALLOC_HOOKS_METHOD),wrap)
+
+default:: libmallochooks.a
+
+comma := ,
+LDFLAGS += $(prefix -Wl$(comma),malloc free realloc memalign)
+LDFLAGS += $(prefix -Wl$(comma),\
+--defsym real_malloc=malloc \
+real_free=free \
+real_realloc=realloc \
+real_memalign=memalign)
+
+LDLIBS += libmallochooks.a 
+
+else
+ifeq ($(MALLOC_HOOKS_METHOD),preload)
+
+# don't modify the linker flags
+default:: libmallochooks.so
+
+else
+ifeq ($(MALLOC_HOOKS_METHOD),glibc)
+
+# glibc implies building a preloadable library
+default:: libmallochooks.so
+
+endif # glibc
+endif # preload
+endif # wrap
