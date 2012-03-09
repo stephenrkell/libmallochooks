@@ -30,11 +30,12 @@ extern void __first_free_hook(void *ptr, const void *caller) __attribute__((weak
 extern void *__first_memalign_hook(size_t alignment, size_t size, const void *caller) __attribute__((weak));
 extern void *__first_realloc_hook(void *ptr, size_t size, const void *caller) __attribute__((weak));
 
-/* These are the __real_ functions that the hooks will eventually call. */
+/* These are the __real_ functions that the hooks will eventually call. 
+ * memalign is weak because it may not be present. */
 void *__real_malloc(size_t size);
 void __real_free(void *ptr);
 void *__real_realloc(void *ptr, size_t size);
-void *__real_memalign(size_t boundary, size_t size);
+void *__real_memalign(size_t boundary, size_t size) __attribute__((weak));
 /* These two won't be called by hooks, but our __wrap_ functions do call them
  * in the event of no hooks being compiled in, so we provide them. */
 void *__real_calloc(size_t nmemb, size_t size);
@@ -136,7 +137,11 @@ int __wrap_posix_memalign(void **memptr, size_t alignment, size_t size)
 	else return __real_posix_memalign(memptr, alignment, size);
 }
 
+#ifndef NO_TLS
 static __thread _Bool dlsym_active; // NOTE: this is NOT subsumed by in_hook
+#else
+static _Bool dlsym_active;
+#endif
 static _Bool tried_to_initialize;
 static _Bool failed_to_initialize;
 static void initialize_underlying_malloc()
@@ -164,7 +169,7 @@ failed_to_initialize = 1; \
 		underlying_free = (void(*)(void*)) dlsym(RTLD_NEXT, "free");
 		if (!underlying_free) fail(free);
 		underlying_memalign = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "memalign");
-		if (!underlying_memalign) fail(memalign);
+		/* Don't fail for memalign -- it's optional. */
 		underlying_realloc = (void*(*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
 		if (!underlying_realloc) fail(realloc);
 		underlying_calloc = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
