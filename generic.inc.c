@@ -26,7 +26,7 @@ generic_malloc_hook(size_t size, const void *caller)
 {
 	void *result;
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("calling malloc (%zu)\n", size);
+	printf ("calling malloc(%zu)\n", size);
 	#endif
 	/* Call recursively */
 	size_t modified_size = size;
@@ -37,7 +37,7 @@ generic_malloc_hook(size_t size, const void *caller)
 	
 	if (result) post_successful_alloc(result, modified_size, caller);
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("malloc (%zu) returns %p (modified size: %zu)\n", 
+	printf ("malloc(%zu) returned chunk at %p (modified size: %zu)\n", 
 		size, result, modified_size); 
 	#endif
 	return result;
@@ -47,7 +47,7 @@ static void
 generic_free_hook(void *ptr, const void *caller)
 {
 	#ifdef TRACE_MALLOC_HOOKS
-	if (ptr != NULL) printf ("freeing pointer %p\n", ptr);
+	if (ptr != NULL) printf ("freeing chunk at %p\n", ptr);
 	#endif 
 	if (ptr != NULL) pre_nonnull_free(ptr, malloc_usable_size(ptr));
 	
@@ -56,7 +56,7 @@ generic_free_hook(void *ptr, const void *caller)
 	
 	if (ptr != NULL) post_nonnull_free(ptr);
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("freed pointer %p\n", ptr);
+	printf ("freed chunk at %p\n", ptr);
 	#endif
 }
 
@@ -65,6 +65,9 @@ generic_memalign_hook (size_t alignment, size_t size, const void *caller)
 {
 	void *result;
 	size_t modified_size = size;
+	#ifdef TRACE_MALLOC_HOOKS
+	printf ("calling memalign(%zu, %zu)\n", alignment, size);
+	#endif
 	pre_alloc(&modified_size, caller);
 	
 	if (__next_memalign_hook) result = __next_memalign_hook(alignment, modified_size, caller);
@@ -72,7 +75,7 @@ generic_memalign_hook (size_t alignment, size_t size, const void *caller)
 	
 	if (result) post_successful_alloc(result, modified_size, caller);
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("memalign (%zu, %zu) returns %p\n", alignment, size, result);
+	printf ("memalign(%zu, %zu) returned %p\n", alignment, size, result);
 	#endif
 	return result;
 }
@@ -83,6 +86,9 @@ generic_realloc_hook(void *ptr, size_t size, const void *caller)
 {
 	void *result;
 	size_t old_usable_size;
+	#ifdef TRACE_MALLOC_HOOKS
+	printf ("realigning pointer %p to requested size %zu\n", ptr, size);
+	#endif
 	/* Split cases. First we eliminate the cases where
 	 * realloc() degenerates into either malloc or free. */
 	if (ptr == NULL)
@@ -132,7 +138,7 @@ generic_realloc_hook(void *ptr, size_t size, const void *caller)
 	}
 
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("realigned pointer %p to %p (requested size %zu, modified size %zu)\n", ptr, result,  
+	printf ("reallocated chunk at %p, new chunk at %p (requested size %zu, modified size %zu)\n", ptr, result,  
 	  size, modified_size);
 	#endif
 	return result;
