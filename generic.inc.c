@@ -28,7 +28,6 @@ generic_malloc_hook(size_t size, const void *caller)
 	#ifdef TRACE_MALLOC_HOOKS
 	printf ("calling malloc(%zu)\n", size);
 	#endif
-	/* Call recursively */
 	size_t modified_size = size;
 	pre_alloc(&modified_size, caller);
 	

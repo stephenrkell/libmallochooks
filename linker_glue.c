@@ -50,6 +50,14 @@ static void *(*underlying_realloc)(void *ptr, size_t size);
 static void *(*underlying_memalign)(size_t boundary, size_t size);
 static int (*underlying_posix_memalign)(void **memptr, size_t alignment, size_t size);
 
+/* We want to avoid infinite regress. We need handling analogous to the
+ * glibc case. If we have TLS, we use that. */
+#ifndef NO_TLS
+static __thread _Bool in_hook;
+#else
+static _Bool in_hook; /* FIXME: use pthread specific object */
+#endif
+
 /* If we're using the preload or wrap methods, we have to convert 
  * the signature of malloc (et al) calls into that expected by the
  * hooks. In particular, the hooks have an extra "caller" argument
@@ -57,7 +65,13 @@ static int (*underlying_posix_memalign)(void **memptr, size_t alignment, size_t 
 void *__wrap_malloc(size_t size)
 {
 	// if we have hooks, call through them
-	if (__first_malloc_hook) return __first_malloc_hook(size, __builtin_return_address(0));
+	if (__first_malloc_hook && !in_hook)
+	{
+		in_hook = 1;
+		void *retval = __first_malloc_hook(size, __builtin_return_address(0));
+		in_hook = 0;
+		return retval;
+	}
 	else return __real_malloc(size);
 }
 
@@ -70,19 +84,36 @@ void *__wrap_calloc(size_t nmemb, size_t size)
 
 void __wrap_free(void *ptr)
 {
-	if (__first_free_hook) __first_free_hook(ptr, __builtin_return_address(0));
+	if (__first_free_hook && !in_hook)
+	{
+		in_hook = 1;
+		__first_free_hook(ptr, __builtin_return_address(0));
+		in_hook = 0;
+	}
 	else __real_free(ptr);
 }
 
 void *__wrap_realloc(void *ptr, size_t size)
 {
-	if (__first_realloc_hook) return __first_realloc_hook(ptr, size, __builtin_return_address(0));
+	if (__first_realloc_hook && !in_hook)
+	{
+		in_hook = 1;
+		void *retval = __first_realloc_hook(ptr, size, __builtin_return_address(0));
+		in_hook = 0;
+		return retval;
+	}
 	else return __real_realloc(ptr, size);
 }
 
 void *__wrap_memalign(size_t boundary, size_t size)
 {
-	if (__first_memalign_hook) return __first_memalign_hook(boundary, size, __builtin_return_address(0));
+	if (__first_memalign_hook && !in_hook)
+	{
+		in_hook = 1;
+		void *retval = __first_memalign_hook(boundary, size, __builtin_return_address(0));
+		in_hook = 0;
+		return retval;
+	}
 	else return __real_memalign(boundary, size);
 }
 
@@ -90,9 +121,11 @@ int __wrap_posix_memalign(void **memptr, size_t alignment, size_t size)
 {
 	void *tmp_out;
 
-	if (__first_memalign_hook)
+	if (__first_memalign_hook && !in_hook)
 	{
+		in_hook = 1;
 		tmp_out = __first_memalign_hook(alignment, size, __builtin_return_address(0));
+		in_hook = 0;
 		if (tmp_out) 
 		{
 			*memptr = tmp_out;
@@ -103,7 +136,7 @@ int __wrap_posix_memalign(void **memptr, size_t alignment, size_t size)
 	else return __real_posix_memalign(memptr, alignment, size);
 }
 
-static __thread _Bool dlsym_active;
+static __thread _Bool dlsym_active; // NOTE: this is NOT subsumed by in_hook
 static _Bool tried_to_initialize;
 static _Bool failed_to_initialize;
 static void initialize_underlying_malloc()
