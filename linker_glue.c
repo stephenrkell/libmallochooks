@@ -59,17 +59,26 @@ static __thread _Bool in_hook;
 static _Bool in_hook; /* FIXME: use pthread specific object */
 #endif
 
+/* This does the work; we provide two different interfaces. */
+static void *do_malloc(size_t size, const void *caller);
+
 /* If we're using the preload or wrap methods, we have to convert 
  * the signature of malloc (et al) calls into that expected by the
  * hooks. In particular, the hooks have an extra "caller" argument
  * that we source from the return address. */
 void *__wrap_malloc(size_t size)
 {
+	return do_malloc(size, __builtin_return_address(0));
+}
+
+/* This is our internal interface, allowing us to pass a caller through. */
+static void *do_malloc(size_t size, const void *caller)
+{
 	// if we have hooks, call through them
 	if (__first_malloc_hook && !in_hook)
 	{
 		in_hook = 1;
-		void *retval = __first_malloc_hook(size, __builtin_return_address(0));
+		void *retval = __first_malloc_hook(size, caller);
 		in_hook = 0;
 		return retval;
 	}
@@ -78,7 +87,10 @@ void *__wrap_malloc(size_t size)
 
 void *__wrap_calloc(size_t nmemb, size_t size)
 {
-	void *returned = __wrap_malloc(nmemb * size);
+	void *returned = do_malloc(
+		nmemb * size, 
+		__builtin_return_address(0)
+	);
 	if (returned) bzero(returned, nmemb * size);
 	return returned;
 }
