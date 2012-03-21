@@ -13,6 +13,9 @@ extern void __next_free_hook(void *ptr, const void *caller) __attribute__((weak)
 extern void *__next_memalign_hook(size_t alignment, size_t size, const void *caller) __attribute__((weak));
 extern void *__next_realloc_hook(void *ptr, size_t size, const void *caller) __attribute__((weak));
 
+/* Avoid an implicit declaration of this helper. */
+extern size_t malloc_usable_size(void *);
+
 static void
 generic_initialize_hook(void)
 {
