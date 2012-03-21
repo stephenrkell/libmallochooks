@@ -4,7 +4,7 @@
 void *__real_malloc(size_t size);
 void __real_free(void *ptr);
 void *__real_realloc(void *ptr, size_t size);
-void *__real_memalign(size_t boundary, size_t size);
+void *__real_memalign(size_t boundary, size_t size) __attribute__((weak));
 #include "generic.inc.c"
 
 /* Init will be done by toplevel_init(). */

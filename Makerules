@@ -36,12 +36,14 @@ ifeq ($(MALLOC_HOOKS_METHOD),wrap)
 default:: libmallochooks.a
 
 comma := ,
-LDFLAGS += $(prefix -Wl$(comma),malloc free realloc memalign)
+LDFLAGS += $(prefix -Wl$(comma)--wrap$(comma),malloc free realloc memalign)
 LDFLAGS += $(prefix -Wl$(comma),\
---defsym real_malloc=malloc \
-real_free=free \
-real_realloc=realloc \
-real_memalign=memalign)
+--defsym __real_malloc=malloc \
+--defsym __real_free=free \
+--defsym __real_realloc=realloc \
+--defsym __real_memalign=memalign \
+--defsym __real_calloc=calloc \
+--defsym __real_posix_memalign=posix_memalign)
 
 LDLIBS += libmallochooks.a 
 
