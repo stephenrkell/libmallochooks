@@ -44,12 +44,12 @@ int __real_posix_memalign(void **memptr, size_t alignment, size_t size);
 /* How do we get to the "real" malloc in the static-linking case?
  * It's probably in a shared library. So we have to do the dlsym() thing anyway.
  * OR it might be in the executable. Either way, dlsym() will find it. */
-static void *(*underlying_malloc)(size_t size);
-static void *(*underlying_calloc)(size_t nmemb, size_t size);
-static void (*underlying_free)(void *ptr);
-static void *(*underlying_realloc)(void *ptr, size_t size);
-static void *(*underlying_memalign)(size_t boundary, size_t size);
-static int (*underlying_posix_memalign)(void **memptr, size_t alignment, size_t size);
+void *(*__underlying_malloc)(size_t size);
+void *(*__underlying_calloc)(size_t nmemb, size_t size);
+void (*__underlying_free)(void *ptr);
+void *(*__underlying_realloc)(void *ptr, size_t size);
+void *(*__underlying_memalign)(size_t boundary, size_t size);
+int (*__underlying_posix_memalign)(void **memptr, size_t alignment, size_t size);
 
 /* We want to avoid infinite regress. We need handling analogous to the
  * glibc case. If we have TLS, we use that. */
@@ -163,8 +163,9 @@ static void initialize_underlying_malloc()
 	if (tried_to_initialize && !failed_to_initialize)
 	{
 		// we should be okay (shouldn't really have been called though)
-		assert(underlying_malloc && underlying_free && underlying_memalign
-			&& underlying_realloc && underlying_calloc && underlying_posix_memalign);
+		assert(__underlying_malloc && __underlying_free && 
+			__underlying_memalign && __underlying_realloc && 
+			__underlying_calloc && __underlying_posix_memalign);
 		return;
 	}
 	else
@@ -176,18 +177,18 @@ failed_to_initialize = 1; \
 		tried_to_initialize = 1;
 		dlsym_active = 1;
 		dlerror();
-		underlying_malloc = (void*(*)(size_t)) dlsym(RTLD_NEXT, "malloc");
-		if (!underlying_malloc) fail(malloc);
-		underlying_free = (void(*)(void*)) dlsym(RTLD_NEXT, "free");
-		if (!underlying_free) fail(free);
-		underlying_memalign = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "memalign");
+		__underlying_malloc = (void*(*)(size_t)) dlsym(RTLD_NEXT, "malloc");
+		if (!__underlying_malloc) fail(malloc);
+		__underlying_free = (void(*)(void*)) dlsym(RTLD_NEXT, "free");
+		if (!__underlying_free) fail(free);
+		__underlying_memalign = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "memalign");
 		/* Don't fail for memalign -- it's optional. */
-		underlying_realloc = (void*(*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
-		if (!underlying_realloc) fail(realloc);
-		underlying_calloc = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
-		if (!underlying_calloc) fail(calloc);
-		underlying_posix_memalign = (int(*)(void**, size_t, size_t)) dlsym(RTLD_NEXT, "posix_memalign");
-		if (!underlying_posix_memalign) fail(posix_memalign);
+		__underlying_realloc = (void*(*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
+		if (!__underlying_realloc) fail(realloc);
+		__underlying_calloc = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
+		if (!__underlying_calloc) fail(calloc);
+		__underlying_posix_memalign = (int(*)(void**, size_t, size_t)) dlsym(RTLD_NEXT, "posix_memalign");
+		if (!__underlying_posix_memalign) fail(posix_memalign);
 		dlsym_active = 0;
 #undef fail
 	}
@@ -197,20 +198,20 @@ failed_to_initialize = 1; \
  * but will switch to using underlying_malloc et al. */
 void *__real_malloc(size_t size)
 {
-	if (!underlying_malloc) initialize_underlying_malloc();
-	if (underlying_malloc) return underlying_malloc(size);
+	if (!__underlying_malloc) initialize_underlying_malloc();
+	if (__underlying_malloc) return __underlying_malloc(size);
 	else return early_malloc(size);
 }
 void __real_free(void *ptr)
 {
-	if (!underlying_free) initialize_underlying_malloc();
-	if (underlying_free) underlying_free(ptr);
+	if (!__underlying_free) initialize_underlying_malloc();
+	if (__underlying_free) __underlying_free(ptr);
 	else early_free(ptr);
 }
 void *__real_realloc(void *ptr, size_t size)
 {
-	if (!underlying_realloc) initialize_underlying_malloc();
-	if (underlying_realloc) return underlying_realloc(ptr, size);
+	if (!__underlying_realloc) initialize_underlying_malloc();
+	if (__underlying_realloc) return __underlying_realloc(ptr, size);
 	else 
 	{
 		void *to_return = early_malloc(size);
@@ -223,14 +224,14 @@ void *__real_realloc(void *ptr, size_t size)
 }
 void *__real_memalign(size_t boundary, size_t size)
 {
-	if (!underlying_memalign) initialize_underlying_malloc();
-	assert(underlying_memalign);
-	return underlying_memalign(boundary, size);
+	if (!__underlying_memalign) initialize_underlying_malloc();
+	assert(__underlying_memalign);
+	return __underlying_memalign(boundary, size);
 }
 void *__real_calloc(size_t nmemb, size_t size)
 {
-	if (!underlying_calloc) initialize_underlying_malloc();
-	if (underlying_calloc) return underlying_calloc(nmemb, size);
+	if (!__underlying_calloc) initialize_underlying_malloc();
+	if (__underlying_calloc) return __underlying_calloc(nmemb, size);
 	else 
 	{
 		void *to_return = early_malloc(nmemb * size);
@@ -241,8 +242,8 @@ void *__real_calloc(size_t nmemb, size_t size)
 }
 int __real_posix_memalign(void **memptr, size_t alignment, size_t size)
 {
-	if (!underlying_posix_memalign) initialize_underlying_malloc();
-	assert(underlying_posix_memalign);
-	return underlying_posix_memalign(memptr, alignment, size);
+	if (!__underlying_posix_memalign) initialize_underlying_malloc();
+	assert(__underlying_posix_memalign);
+	return __underlying_posix_memalign(memptr, alignment, size);
 
 }
