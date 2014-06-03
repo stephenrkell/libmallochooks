@@ -4,21 +4,18 @@
 #endif
 #include <stdlib.h>
 #include <malloc.h>
-#include <pthread.h> // HMM: want to make this a weak dependency
 
 #ifndef __MALLOC_HOOK_VOLATILE
 #define __MALLOC_HOOK_VOLATILE volatile
 #endif
 
+/* Prototype the hook_* functions. */
+#undef HOOK_PREFIX
 #include "hook_protos.h"
-
-/* Declare the variables that point to the active hooks. This isn't necessary
- * on glibc... adding it here as a precursor to supporting more platforms. */
-extern void (*__MALLOC_HOOK_VOLATILE __malloc_initialize_hook)(void);
-extern void *(*__MALLOC_HOOK_VOLATILE __malloc_hook)(size_t, const void *);
-extern void (*__MALLOC_HOOK_VOLATILE __free_hook)(void*, const void *);
-extern void *(*__MALLOC_HOOK_VOLATILE __memalign_hook)(size_t alignment, size_t size, const void *caller);
-extern void *(*__MALLOC_HOOK_VOLATILE __realloc_hook)(void *ptr, size_t size, const void *caller);
+/* Prototype the __terminal_hook_* functions. */
+#define HOOK_PREFIX(i) __terminal_ ## i
+#include "hook_protos.h"
+#undef HOOK_PREFIX
 
 /* Saved copies of those global variables. */
 static void (*__MALLOC_HOOK_VOLATILE underlying_initialize_hook)(void);
@@ -27,27 +24,20 @@ static void (*__MALLOC_HOOK_VOLATILE underlying_free_hook)(void*, const void *);
 static void *(*__MALLOC_HOOK_VOLATILE underlying_memalign_hook)(size_t alignment, size_t size, const void *caller);
 static void *(*__MALLOC_HOOK_VOLATILE underlying_realloc_hook)(void *ptr, size_t size, const void *caller);
 
-/* Prototypes for the library-level hooks. */
+/* Prototypes for our glue stubs a.k.a. top-level hooks. */
 static void glibc_initialize_hook(void);
 static void *glibc_malloc_hook(size_t size, const void *caller);
 static void glibc_free_hook(void *ptr, const void *caller);
 static void *glibc_memalign_hook(size_t alignment, size_t size, const void *caller);
 static void *glibc_realloc_hook(void *ptr, size_t size, const void *caller);
 
-/* Prototypes for the library-level hooks. */
-static void generic_initialize_hook(void);
-static void *generic_malloc_hook(size_t size, const void *caller);
-static void generic_free_hook(void *ptr, const void *caller);
-static void *generic_memalign_hook(size_t alignment, size_t size, const void *caller);
-static void *generic_realloc_hook(void *ptr, size_t size, const void *caller);
-
-/* The generic hooks call into __real_malloc et al. In the glibc case, 
- * since we never mess with symbol resolution, we just define these to be
- * aliases of malloc et al. */
-static void *__real_malloc(size_t size) __attribute__ ((weakref ("malloc")));
-static void __real_free(void *ptr) __attribute__ ((weakref ("free")));
-static void *__real_memalign(size_t alignment, size_t size) __attribute__ ((weakref ("memalign")));
-static void *__real_realloc(void *ptr, size_t size) __attribute__ ((weakref ("realloc")));
+/* The event hooks, like all hooks should, call into __next_malloc et al.
+ * We define the glue to turn these calls back into actual malloc calls. 
+ * It is up to the linker to bind the right __next_* calls to __terminal_*. */
+void *__terminal_hook_malloc(size_t size, const void *caller) { return malloc(size); }
+void __terminal_hook_free(void *ptr, const void *caller) { free(ptr); }
+void *__terminal_hook_memalign(size_t alignment, size_t size, const void *caller) { return memalign(alignment, size); }
+void *__terminal_hook_realloc(void *ptr, size_t size, const void *caller) { return realloc(ptr, size); }
 
 /* Map the glibc hooks onto the generic hooks.
  * Since the glibc hooks are triggered by indirect calls through the globals above,
@@ -85,7 +75,7 @@ glibc_initialize_hook(void)
 	UPDATE_UNDERLYING_HOOKS /* actually, save them for the first time */
 	
 	// we call our initialize hooks with the underlying hooks active
-	generic_initialize_hook();
+	hook_init();
 
 	RESTORE_OUR_HOOKS
 }
@@ -97,7 +87,7 @@ glibc_malloc_hook (size_t size, const void *caller)
 
 	RESTORE_UNDERLYING_HOOKS
 
-	result = generic_malloc_hook(size, caller);
+	result = hook_malloc(size, caller);
 
 	UPDATE_UNDERLYING_HOOKS
 	RESTORE_OUR_HOOKS
@@ -110,7 +100,7 @@ glibc_free_hook(void *ptr, const void *caller)
 {
 	RESTORE_UNDERLYING_HOOKS
 	
-	generic_free_hook(ptr, caller);
+	hook_free(ptr, caller);
 	
 	UPDATE_UNDERLYING_HOOKS
 	RESTORE_OUR_HOOKS
@@ -123,7 +113,7 @@ glibc_memalign_hook(size_t alignment, size_t size, const void *caller)
 
 	RESTORE_UNDERLYING_HOOKS
 
-	result = generic_memalign_hook(alignment, size, caller);
+	result = hook_memalign(alignment, size, caller);
 
 	UPDATE_UNDERLYING_HOOKS
 	RESTORE_OUR_HOOKS
@@ -138,7 +128,7 @@ glibc_realloc_hook(void *ptr, size_t size, const void *caller)
 
 	RESTORE_UNDERLYING_HOOKS
 
-	result = generic_realloc_hook(ptr, size, caller);
+	result = hook_realloc(ptr, size, caller);
 
 	UPDATE_UNDERLYING_HOOKS
 	RESTORE_OUR_HOOKS
@@ -148,10 +138,3 @@ glibc_realloc_hook(void *ptr, size_t size, const void *caller)
 
 /* We are the toplevel hook. */
 void (*__MALLOC_HOOK_VOLATILE __malloc_initialize_hook)(void) = glibc_initialize_hook;
-
-/* We changed the name of init_hook. */
-static void init_hook(void); 
-static void initialize_hook(void) { init_hook(); }
-
-/* Now include our generic hooks. */
-#include "generic.inc.c"

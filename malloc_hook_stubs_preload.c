@@ -9,9 +9,34 @@
 
 #include <errno.h>
 
+/* Prototype the hook_* functions. */
+#undef HOOK_PREFIX
+#include "hook_protos.h"
+/* Prototype the __terminal_hook_* functions. */
+#define HOOK_PREFIX(i) __terminal_ ## i
+#include "hook_protos.h"
+
 extern void *early_malloc(size_t size);
 extern void early_free(void *ptr);
+#define EARLY_MALLOC_LIMIT (10*1024*1024)
+char early_malloc_buf[EARLY_MALLOC_LIMIT]; /* 10MB should suffice */
+char *early_malloc_pos;
+#define EARLY_MALLOC_END (&early_malloc_buf[EARLY_MALLOC_LIMIT])
 
+void *early_malloc(size_t size)
+{
+	if (early_malloc_pos + size < EARLY_MALLOC_END)
+	{
+		void *allocated = early_malloc_pos;
+		early_malloc_pos += size;
+		return allocated;
+	}
+	else return NULL;
+}
+
+void early_free(void *ptr) {}
+
+/* These are our pointers to the dlsym-returned RTLD_NEXT malloc and friends. */
 void *(*__underlying_malloc)(size_t size);
 void *(*__underlying_calloc)(size_t nmemb, size_t size);
 void (*__underlying_free)(void *ptr);
@@ -65,20 +90,20 @@ failed_to_initialize = 1; \
 }
 
 /* Now the "real" functions. These will rely on early_malloc early on, 
- * but will switch to using underlying_malloc et al. */
-void *__real_malloc(size_t size)
+ * when it's not safe to call dlsym(), then switch to underlying_malloc et al. */
+void *__terminal_hook_malloc(size_t size, const void *caller)
 {
 	if (!__underlying_malloc) initialize_underlying_malloc();
 	if (__underlying_malloc) return __underlying_malloc(size);
 	else return early_malloc(size);
 }
-void __real_free(void *ptr)
+void __terminal_hook_free(void *ptr, const void *caller)
 {
 	if (!__underlying_free) initialize_underlying_malloc();
 	if (__underlying_free) __underlying_free(ptr);
 	else early_free(ptr);
 }
-void *__real_realloc(void *ptr, size_t size)
+void *__terminal_hook_realloc(void *ptr, size_t size, const void *caller)
 {
 	if (!__underlying_realloc) initialize_underlying_malloc();
 	if (__underlying_realloc) return __underlying_realloc(ptr, size);
@@ -92,28 +117,61 @@ void *__real_realloc(void *ptr, size_t size)
 		return to_return;
 	}
 }
-void *__real_memalign(size_t boundary, size_t size)
+void *__terminal_hook_memalign(size_t boundary, size_t size, const void *caller)
 {
 	if (!__underlying_memalign) initialize_underlying_malloc();
 	assert(__underlying_memalign);
 	return __underlying_memalign(boundary, size);
 }
-void *__real_calloc(size_t nmemb, size_t size)
-{
-	if (!__underlying_calloc) initialize_underlying_malloc();
-	if (__underlying_calloc) return __underlying_calloc(nmemb, size);
-	else 
-	{
-		void *to_return = early_malloc(nmemb * size);
-		if (to_return) bzero(to_return, nmemb * size);
-		return to_return;
-	}
+// void *__terminal_hook_calloc(size_t nmemb, size_t size, const void *caller)
+// {
+// 	if (!__underlying_calloc) initialize_underlying_malloc();
+// 	if (__underlying_calloc) return __underlying_calloc(nmemb, size);
+// 	else 
+// 	{
+// 		void *to_return = early_malloc(nmemb * size);
+// 		if (to_return) bzero(to_return, nmemb * size);
+// 		return to_return;
+// 	}
+// 
+// }
+// int __terminal_hook_posix_memalign(void **memptr, size_t alignment, size_t size, const void *caller)
+// {
+// 	if (!__underlying_posix_memalign) initialize_underlying_malloc();
+// 	assert(__underlying_posix_memalign);
+// 	return __underlying_posix_memalign(memptr, alignment, size);
+// }
 
+/* These are our actual hook stubs. */
+void *malloc(size_t size)
+{
+	return hook_malloc(size, __builtin_return_address(0));
 }
-int __real_posix_memalign(void **memptr, size_t alignment, size_t size)
+void *calloc(size_t nmemb, size_t size)
 {
-	if (!__underlying_posix_memalign) initialize_underlying_malloc();
-	assert(__underlying_posix_memalign);
-	return __underlying_posix_memalign(memptr, alignment, size);
-
+	void *ret = hook_malloc(nmemb * size, __builtin_return_address(0));
+	if (ret) bzero(ret, size);
+	return ret;
+}
+void free(void *ptr)
+{
+	hook_free(ptr, __builtin_return_address(0));
+}
+void *realloc(void *ptr, size_t size)
+{
+	return hook_realloc(ptr, size, __builtin_return_address(0));
+}
+void *memalign(size_t boundary, size_t size)
+{
+	return hook_memalign(boundary, size, __builtin_return_address(0));
+}
+int posix_memalign(void **memptr, size_t alignment, size_t size)
+{
+	void *ret = hook_memalign(alignment, size, __builtin_return_address(0));
+	if (!ret) return EINVAL; // FIXME: check alignment, return ENOMEM/EINVAL as appropriate
+	else
+	{
+		*memptr = ret;
+		return 0;
+	}
 }

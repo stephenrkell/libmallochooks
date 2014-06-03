@@ -1,4 +1,6 @@
+# whitespace-separated: can have more than one
 BUILD_MALLOC_HOOKS ?= noop
+# must have exactly one method!
 MALLOC_HOOKS_METHOD ?= preload
 
 # add the path of this makefile to vpath
@@ -11,19 +13,45 @@ vpath %.a  $(dir $(realpath $(THIS_MAKEFILE)))
 vpath %.so $(dir $(realpath $(THIS_MAKEFILE)))
 
 CFLAGS += -I$(dir $(realpath $(THIS_MAKEFILE)))
+
+ifeq ($(FAST_CFLAGS),)
+FAST_CFLAGS += -O -flto
+endif
+ifeq ($(NON_FAST_CFLAGS),)
+NON_FAST_CFLAGS += -O0
+endif
+
 $(warning CFLAGS is $(CFLAGS))
 
 %_fast.c: %.c
 	cp "$<" "$@"
-%_$(MALLOC_HOOKS_METHOD)_hooks.c: %_hooks.c
-	cp "$<" "$@"
 
-HOOKS_INCLUDE_DEF := -DMALLOC_HOOKS_INCLUDE=\"malloc_hooks_$(MALLOC_HOOKS_METHOD).c\"
+# object files for the individual hooks can be built fast- or non-fast
+.SECONDARY: $(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS))
+$(patsubst %,%_hooks_fast.o,$(BUILD_MALLOC_HOOKS)): CFLAGS += $(FAST_CFLAGS)
+$(patsubst %,%_hooks.o,$(BUILD_MALLOC_HOOKS)): CFLAGS += $(NON_FAST_CFLAGS)
 
-.SECONDARY: $(BUILD_MALLOC_HOOKS)_$(MALLOC_HOOKS_METHOD)_hooks_fast.c
-$(BUILD_MALLOC_HOOKS)_$(MALLOC_HOOKS_METHOD)_hooks_fast.o: CFLAGS += $(FAST_CFLAGS) $(HOOKS_INCLUDE_DEF)
-.SECONDARY: $(BUILD_MALLOC_HOOKS)_$(MALLOC_HOOKS_METHOD)_hooks.c
-$(BUILD_MALLOC_HOOKS)_$(MALLOC_HOOKS_METHOD)_hooks.o: CFLAGS += $(NON_FAST_CFLAGS) $(HOOKS_INCLUDE_DEF)
+# the object file for the overall ensemble can also be built fast- or non-fast
+.SECONDARY: malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.c
+malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.o: CFLAGS += $(FAST_CFLAGS)
+malloc_hook_stubs_$(MALLOC_HOOKS_METHOD).o: CFLAGS += $(NON_FAST_CFLAGS)
+
+# building the actual hooks
+# FIXME: iterative version for multiple hooks
+malloc_hooks_$(MALLOC_HOOKS_METHOD).o: malloc_hook_stubs_$(MALLOC_HOOKS_METHOD).o $(patsubst %.c,%.o,$(patsubst %,%_hooks.c,$(BUILD_MALLOC_HOOKS)))
+	$(LD) -o "$@" -r malloc_hook_stubs_$(MALLOC_HOOKS_METHOD).o  \
+	--defsym __next_hook_malloc=__terminal_hook_malloc \
+	--defsym __next_hook_realloc=__terminal_hook_realloc \
+	--defsym __next_hook_free=__terminal_hook_free \
+	--defsym __next_hook_memalign=__terminal_hook_memalign \
+	$(patsubst %.c,%.o,$(patsubst %,%_hooks.c,$(BUILD_MALLOC_HOOKS)))
+malloc_hooks_$(MALLOC_HOOKS_METHOD)_fast.o: malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.o $(patsubst %_fast.c,%_fast.o,$(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS)))
+	$(LD) -o "$@" -r malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.o  \
+	--defsym __next_hook_malloc=__terminal_hook_malloc \
+	--defsym __next_hook_realloc=__terminal_hook_realloc \
+	--defsym __next_hook_free=__terminal_hook_free \
+	--defsym __next_hook_memalign=__terminal_hook_memalign \
+	$(patsubst %_fast.c,%_fast.o,$(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS)))
 
 comma := ,
 
