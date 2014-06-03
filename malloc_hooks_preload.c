@@ -1,10 +1,11 @@
-/* We want to build some non-glibc preloadable malloc wrappers. */
+/* We want to build some preloadable malloc wrappers. */
 
-#include "hook_protos.inc.c"
+#include "hook_protos.h"
 void *__real_malloc(size_t size);
 void __real_free(void *ptr);
 void *__real_realloc(void *ptr, size_t size);
 void *__real_memalign(size_t boundary, size_t size) __attribute__((weak));
+
 #include "generic.inc.c"
 
 /* Init will be done by toplevel_init(). */

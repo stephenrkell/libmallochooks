@@ -1,9 +1,9 @@
 BUILD_MALLOC_HOOKS ?= noop
-MALLOC_HOOKS_METHOD ?= glibc
+MALLOC_HOOKS_METHOD ?= preload
 
 # add the path of this makefile to vpath
 # (since we assume we're being included from the build dir)
-THIS_MAKEFILE := $(lastword $(MAKEFILES_LIST))
+THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 
 vpath %.c  $(dir $(realpath $(THIS_MAKEFILE)))
 vpath %.o  $(dir $(realpath $(THIS_MAKEFILE)))
@@ -11,14 +11,21 @@ vpath %.a  $(dir $(realpath $(THIS_MAKEFILE)))
 vpath %.so $(dir $(realpath $(THIS_MAKEFILE)))
 
 CFLAGS += -I$(dir $(realpath $(THIS_MAKEFILE)))
+$(warning CFLAGS is $(CFLAGS))
 
-default::
+%_fast.c: %.c
+	cp "$<" "$@"
+%_$(MALLOC_HOOKS_METHOD)_hooks.c: %_hooks.c
+	cp "$<" "$@"
 
-libmallochooks.a: $(patsubst %,%.o,$(BUILD_MALLOC_HOOKS))
-	ar r "$@" $^ 
+HOOKS_INCLUDE_DEF := -DMALLOC_HOOKS_INCLUDE=\"malloc_hooks_$(MALLOC_HOOKS_METHOD).c\"
 
-libmallochooks.so: $(patsubst %,%.o,$(BUILD_MALLOC_HOOKS))
-	$(CC) -shared -o "$@" $+
+.SECONDARY: $(BUILD_MALLOC_HOOKS)_$(MALLOC_HOOKS_METHOD)_hooks_fast.c
+$(BUILD_MALLOC_HOOKS)_$(MALLOC_HOOKS_METHOD)_hooks_fast.o: CFLAGS += $(FAST_CFLAGS) $(HOOKS_INCLUDE_DEF)
+.SECONDARY: $(BUILD_MALLOC_HOOKS)_$(MALLOC_HOOKS_METHOD)_hooks.c
+$(BUILD_MALLOC_HOOKS)_$(MALLOC_HOOKS_METHOD)_hooks.o: CFLAGS += $(NON_FAST_CFLAGS) $(HOOKS_INCLUDE_DEF)
+
+comma := ,
 
 # We understand at least three hooking methods.
 # 1. Use glibc's hook infrastructure
@@ -31,33 +38,37 @@ libmallochooks.so: $(patsubst %,%.o,$(BUILD_MALLOC_HOOKS))
 # supports an early_malloc, early_free etc.. Only when our
 # dlsym has succeeded do we switch to using the real malloc.
 
+# Set global linker options appropriate for the method we're using.
 ifeq ($(MALLOC_HOOKS_METHOD),wrap)
 
-default:: libmallochooks.a
+# Modify the including Makefile's LDFLAGS so that 
+# - malloc and friends are --wrap'ped
+# - for good measure (FIXME: why?) define __real_* to be aliases of the unprefixed
+# - (recall: --wrap only affects the undefined symbols in any given linker input file)
 
-comma := ,
-LDFLAGS += $(prefix -Wl$(comma)--wrap$(comma),malloc free realloc memalign)
+LDFLAGS += $(prefix -Wl$(comma)--wrap$(comma),malloc calloc free realloc memalign posix_memalign)
 LDFLAGS += $(prefix -Wl$(comma),\
 --defsym __real_malloc=malloc \
+--defsym __real_calloc=calloc \
 --defsym __real_free=free \
 --defsym __real_realloc=realloc \
 --defsym __real_memalign=memalign \
---defsym __real_calloc=calloc \
 --defsym __real_posix_memalign=posix_memalign)
 
-LDLIBS += libmallochooks.a 
+# We don't know whether the user wants fast or "normal" hooks, so don't modify ldlibs
+# LDLIBS += 
 
 else
 ifeq ($(MALLOC_HOOKS_METHOD),preload)
 
-# don't modify the linker flags
-default:: libmallochooks.so
+# don't modify the linker flags, 
+# but DO rename our [first] hooks to their rightful names.
+# How? 
 
 else
 ifeq ($(MALLOC_HOOKS_METHOD),glibc)
 
 # glibc implies building a preloadable library
-default:: libmallochooks.so
 
 endif # glibc
 endif # preload

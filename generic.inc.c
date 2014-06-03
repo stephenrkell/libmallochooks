@@ -29,36 +29,40 @@ generic_malloc_hook(size_t size, const void *caller)
 {
 	void *result;
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("calling malloc(%zu)\n", size);
+	fprintf(stderr, "calling malloc(%zu)\n", size);
 	#endif
 	size_t modified_size = size;
-	pre_alloc(&modified_size, caller);
+	size_t modified_alignment = sizeof (void *);
+	pre_alloc(&modified_size, &modified_alignment, caller);
+	assert(modified_alignment == sizeof (void *));
 	
 	if (__next_malloc_hook) result = __next_malloc_hook(size, caller);
 	else result = __real_malloc(modified_size);
 	
-	if (result) post_successful_alloc(result, modified_size, caller);
+	if (result) post_successful_alloc(result, modified_size, modified_alignment, 
+			size, sizeof (void*), caller);
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("malloc(%zu) returned chunk at %p (modified size: %zu)\n", 
-		size, result, modified_size); 
+	fprintf(stderr, "malloc(%zu) returned chunk at %p (modified size: %zu, userptr: %p)\n", 
+		size, result, modified_size, allocptr_to_userptr(result)); 
 	#endif
-	return result;
+	return allocptr_to_userptr(result);
 }
 
 static void
-generic_free_hook(void *ptr, const void *caller)
+generic_free_hook(void *userptr, const void *caller)
 {
+	void *allocptr = userptr_to_allocptr(userptr);
 	#ifdef TRACE_MALLOC_HOOKS
-	if (ptr != NULL) printf ("freeing chunk at %p\n", ptr);
+	if (userptr != NULL) fprintf(stderr, "freeing chunk at %p (userptr %p)\n", allocptr, userptr);
 	#endif 
-	if (ptr != NULL) pre_nonnull_free(ptr, malloc_usable_size(ptr));
+	if (userptr != NULL) pre_nonnull_free(userptr, malloc_usable_size(allocptr));
 	
-	if (__next_free_hook) __next_free_hook(ptr, caller);
-	else __real_free(ptr);
+	if (__next_free_hook) __next_free_hook(allocptr, caller);
+	else __real_free(allocptr);
 	
-	if (ptr != NULL) post_nonnull_free(ptr);
+	if (userptr != NULL) post_nonnull_free(userptr);
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("freed chunk at %p\n", ptr);
+	fprintf(stderr, "freed chunk at %p\n", allocptr);
 	#endif
 }
 
@@ -67,41 +71,45 @@ generic_memalign_hook (size_t alignment, size_t size, const void *caller)
 {
 	void *result;
 	size_t modified_size = size;
+	size_t modified_alignment = alignment;
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("calling memalign(%zu, %zu)\n", alignment, size);
+	fprintf(stderr, "calling memalign(%zu, %zu)\n", alignment, size);
 	#endif
-	pre_alloc(&modified_size, caller);
+	pre_alloc(&modified_size, &modified_alignment, caller);
 	
-	if (__next_memalign_hook) result = __next_memalign_hook(alignment, modified_size, caller);
-	else result = __real_memalign(alignment, modified_size);
+	if (__next_memalign_hook) result = __next_memalign_hook(modified_alignment, modified_size, caller);
+	else result = __real_memalign(modified_alignment, modified_size);
 	
-	if (result) post_successful_alloc(result, modified_size, caller);
+	if (result) post_successful_alloc(result, modified_size, modified_alignment, size, alignment, caller);
 	#ifdef TRACE_MALLOC_HOOKS
 	printf ("memalign(%zu, %zu) returned %p\n", alignment, size, result);
 	#endif
-	return result;
+	return allocptr_to_userptr(result);
 }
 
 
 static void *
-generic_realloc_hook(void *ptr, size_t size, const void *caller)
+generic_realloc_hook(void *userptr, size_t size, const void *caller)
 {
-	void *result;
+	void *result_allocptr;
+	void *allocptr = userptr_to_allocptr(userptr);
+	size_t alignment = sizeof (void*);
 	size_t old_usable_size;
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("realigning pointer %p to requested size %zu\n", ptr, size);
+	fprintf(stderr, "realigning user pointer %p (allocptr: %p) to requested size %zu\n", userptr, 
+			allocptr, size);
 	#endif
 	/* Split cases. First we eliminate the cases where
 	 * realloc() degenerates into either malloc or free. */
-	if (ptr == NULL)
+	if (userptr == NULL)
 	{
 		/* We behave like malloc(). */
-		pre_alloc(&size, caller);
+		pre_alloc(&size, &alignment, caller);
 	}
 	else if (size == 0)
 	{
 		/* We behave like free(). */
-		pre_nonnull_free(ptr, malloc_usable_size(ptr));
+		pre_nonnull_free(userptr, malloc_usable_size(allocptr));
 	}
 	else
 	{
@@ -109,39 +117,42 @@ generic_realloc_hook(void *ptr, size_t size, const void *caller)
 		 * original block untouched. 
 		 * If it changes, we'll need to know the old usable size to access
 		 * the old trailer. */
-		old_usable_size = malloc_usable_size(ptr);
-		pre_nonnull_nonzero_realloc(ptr, size, caller, result);
+		old_usable_size = malloc_usable_size(allocptr);
+		pre_nonnull_nonzero_realloc(userptr, size, caller);
 	}
 	
 	/* Modify the size, as usual, *only if* size != 0 */
 	size_t modified_size = size;
+	size_t modified_alignment = sizeof (void *);
 	if (size != 0)
 	{
-		pre_alloc(&modified_size, caller);
+		pre_alloc(&modified_size, &modified_alignment, caller);
+		assert(modified_alignment == sizeof (void *));
 	}
 
-	if (__next_realloc_hook) result = __next_realloc_hook(ptr, modified_size, caller);
-	else result = __real_realloc(ptr, modified_size);
+	if (__next_realloc_hook) result_allocptr = __next_realloc_hook(allocptr, modified_size, caller);
+	else result_allocptr = __real_realloc(allocptr, modified_size);
 	
-	if (ptr == NULL)
+	if (userptr == NULL)
 	{
 		/* like malloc() */
-		if (result) post_successful_alloc(result, modified_size, caller);
+		if (result_allocptr) post_successful_alloc(result_allocptr, modified_size, modified_alignment, 
+				size, sizeof (void*), caller);
 	}
 	else if (size == 0)
 	{
 		/* like free */
-		post_nonnull_free(ptr);
+		post_nonnull_free(userptr);
 	}
 	else
 	{
 		/* bona fide realloc */
-		post_nonnull_nonzero_realloc(ptr, modified_size, old_usable_size, caller, result);
+		post_nonnull_nonzero_realloc(userptr, modified_size, old_usable_size, caller, result_allocptr);
 	}
 
 	#ifdef TRACE_MALLOC_HOOKS
-	printf ("reallocated chunk at %p, new chunk at %p (requested size %zu, modified size %zu)\n", ptr, result,  
-	  size, modified_size);
+	fprintf(stderr, "reallocated user chunk at %p, new user chunk at %p (requested size %zu, modified size %zu)\n", 
+			userptr, allocptr_to_userptr(result_allocptr), size, modified_size);
 	#endif
-	return result;
+	return allocptr_to_userptr(result_allocptr);
 }

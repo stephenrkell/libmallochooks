@@ -9,7 +9,7 @@ extern void *__real_calloc(size_t nmemb, size_t size);
 extern void __real_free(void *ptr);
 extern void *__real_realloc(void *ptr, size_t size);
 extern void *__real_memalign(size_t boundary, size_t size) __attribute__((weak));
-extern void *__real_posix_memalign(void **memptr, size_t alignment, size_t size);
+extern int __real_posix_memalign(void **memptr, size_t alignment, size_t size);
 
 void *(*__underlying_malloc)(size_t size) = &__real_malloc;
 void *(*__underlying_calloc)(size_t nmemb, size_t size) = &__real_calloc;
