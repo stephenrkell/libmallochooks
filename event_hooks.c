@@ -32,26 +32,18 @@ hook_init(void)
 }
 
 void *
-hook_calloc(size_t nmemb, size_t size, const void *caller)
-{
-	void *result = hook_malloc(size * nmemb, caller);
-	bzero(result, size * nmemb);
-	return result;
-}
-
-void *
 hook_malloc(size_t size, const void *caller)
 {
 	void *result;
 	#ifdef TRACE_MALLOC_HOOKS
-	fprintf(stderr, "calling malloc(%zu)\n", size);
+	fprintf(stderr, "called malloc(%zu)\n", size);
 	#endif
 	size_t modified_size = size;
 	size_t modified_alignment = sizeof (void *);
 	pre_alloc(&modified_size, &modified_alignment, caller);
 	assert(modified_alignment == sizeof (void *));
 	
-	result = __next_hook_malloc(size, caller);
+	result = __next_hook_malloc(modified_size, caller);
 	
 	if (result) post_successful_alloc(result, modified_size, modified_alignment, 
 			size, sizeof (void*), caller);
@@ -77,18 +69,6 @@ hook_free(void *userptr, const void *caller)
 	#ifdef TRACE_MALLOC_HOOKS
 	fprintf(stderr, "freed chunk at %p\n", allocptr);
 	#endif
-}
-
-int
-hook_posix_memalign(void **memptr, size_t alignment, size_t size, const void *caller)
-{
-	void *ret = hook_memalign(alignment, size, caller);
-	if (!ret) return EINVAL; // FIXME: check alignment, return ENOMEM/EINVAL as appropriate
-	else
-	{
-		*memptr = ret;
-		return 0;
-	}
 }
 
 void *

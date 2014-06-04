@@ -150,7 +150,7 @@ void *malloc(size_t size)
 void *calloc(size_t nmemb, size_t size)
 {
 	void *ret = hook_malloc(nmemb * size, __builtin_return_address(0));
-	if (ret) bzero(ret, size);
+	if (ret) bzero(ret, nmemb * size);
 	return ret;
 }
 void free(void *ptr)
