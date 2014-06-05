@@ -20,7 +20,7 @@ extern void *early_malloc(size_t size);
 extern void early_free(void *ptr);
 #define EARLY_MALLOC_LIMIT (10*1024*1024)
 char early_malloc_buf[EARLY_MALLOC_LIMIT]; /* 10MB should suffice */
-char *early_malloc_pos;
+char *early_malloc_pos = &early_malloc_buf[0];
 #define EARLY_MALLOC_END (&early_malloc_buf[EARLY_MALLOC_LIMIT])
 
 void *early_malloc(size_t size)
@@ -49,6 +49,13 @@ static __thread _Bool dlsym_active; // NOTE: this is NOT subsumed by in_hook
 #else
 static _Bool dlsym_active;
 #endif
+
+#ifndef NO_TLS
+static __thread _Bool in_hook;
+#else
+static _Bool in_hook;
+#endif
+
 static _Bool tried_to_initialize;
 static _Bool failed_to_initialize;
 static void initialize_underlying_malloc()
@@ -99,9 +106,19 @@ void *__terminal_hook_malloc(size_t size, const void *caller)
 }
 void __terminal_hook_free(void *ptr, const void *caller)
 {
-	if (!__underlying_free) initialize_underlying_malloc();
-	if (__underlying_free) __underlying_free(ptr);
-	else early_free(ptr);
+	if ((char*) ptr >= early_malloc_buf && (char*) ptr < EARLY_MALLOC_END)
+	{
+		early_free(ptr);
+	}
+	else
+	{
+		if (!__underlying_free) initialize_underlying_malloc();
+		if (__underlying_free) __underlying_free(ptr);
+		else
+		{
+			// do nothing -- we couldn't get a pointer to free
+		}
+	}
 }
 void *__terminal_hook_realloc(void *ptr, size_t size, const void *caller)
 {
@@ -109,6 +126,7 @@ void *__terminal_hook_realloc(void *ptr, size_t size, const void *caller)
 	if (__underlying_realloc) return __underlying_realloc(ptr, size);
 	else 
 	{
+		// unconditionally do the reallocation
 		void *to_return = early_malloc(size);
 		if (to_return)
 		{
@@ -142,32 +160,93 @@ void *__terminal_hook_memalign(size_t boundary, size_t size, const void *caller)
 // 	return __underlying_posix_memalign(memptr, alignment, size);
 // }
 
+/* NOTE that we can easily get infinite regress here, so we guard against it 
+ * explicitly. We guard against the dlsym case separately, but another case
+ * that I've seen in event_hooks/liballocs is as follows:
+ * 
+ * - alloc succeeds
+ * - call post_successful_alloc
+ * - initialize index using mmap()
+ * - mmap trapped by liballocs
+ * - ... calls dlsym
+ * - ... calls calloc, succeeds
+ * - ... call post_successful_alloc
+ * - ... initialize index using mmap()... 
+ * 
+ * In short, our policy is that allocs made while servicing hooks shouldn't
+ * themselves be hooked. This includes calloc()s subservient to dlsym() subservient
+ * to the wrapped mmap(). So we call __terminal_hook_* if a hook is already active.
+ * Arguably, what should happen is that the mmap itself is not hooked if its callsite
+ * is in the hooking code. Actually I've applied that fix to preload.c/heap_index_hooks.c 
+ * anyway, by deferring setting safe_to_call_malloc until the heap_index is init'd, 
+ * so this should not arise.
+ */
+
 /* These are our actual hook stubs. */
 void *malloc(size_t size)
 {
-	return hook_malloc(size, __builtin_return_address(0));
+	void *ret;
+	if (!in_hook)
+	{
+		in_hook = 1;
+		ret = hook_malloc(size, __builtin_return_address(0));
+		in_hook = 0;
+	} else ret = __terminal_hook_malloc(size, __builtin_return_address(0));
+	return ret;
 }
 void *calloc(size_t nmemb, size_t size)
 {
-	void *ret = hook_malloc(nmemb * size, __builtin_return_address(0));
+	void *ret;
+	if (!in_hook)
+	{
+		in_hook = 1;
+		ret = hook_malloc(nmemb * size, __builtin_return_address(0));
+		in_hook = 0;
+	} else ret = __terminal_hook_malloc(nmemb * size, __builtin_return_address(0));
 	if (ret) bzero(ret, nmemb * size);
 	return ret;
 }
 void free(void *ptr)
 {
-	hook_free(ptr, __builtin_return_address(0));
+	if (!in_hook)
+	{
+		in_hook = 1;
+		hook_free(ptr, __builtin_return_address(0));
+		in_hook = 0;
+	} else __terminal_hook_free(ptr, __builtin_return_address(0));
 }
 void *realloc(void *ptr, size_t size)
 {
-	return hook_realloc(ptr, size, __builtin_return_address(0));
+	void *ret;
+	if (!in_hook)
+	{
+		in_hook = 1;
+		ret = hook_realloc(ptr, size, __builtin_return_address(0));
+		in_hook = 0;
+	} else ret = __terminal_hook_realloc(ptr, size, __builtin_return_address(0));
+	return ret;
 }
 void *memalign(size_t boundary, size_t size)
 {
-	return hook_memalign(boundary, size, __builtin_return_address(0));
+	void *ret;
+	if (!in_hook)
+	{
+		in_hook = 1;
+		ret = hook_memalign(boundary, size, __builtin_return_address(0));
+		in_hook = 0;
+	} else ret = __terminal_hook_memalign(boundary, size, __builtin_return_address(0));
+	return ret;
 }
 int posix_memalign(void **memptr, size_t alignment, size_t size)
 {
-	void *ret = hook_memalign(alignment, size, __builtin_return_address(0));
+	void *ret;
+	if (!in_hook)
+	{
+		in_hook = 1;
+		ret = hook_memalign(alignment, size, __builtin_return_address(0));
+		in_hook = 0;
+	} else ret = __terminal_hook_memalign(alignment, size, __builtin_return_address(0));
+	
 	if (!ret) return EINVAL; // FIXME: check alignment, return ENOMEM/EINVAL as appropriate
 	else
 	{
