@@ -10,6 +10,8 @@
 #include "hook_protos.h"
 #undef HOOK_PREFIX
 
+#define HIDDEN __attribute__((visibility("hidden")))
+#define ALLOC_EVENT_ATTRIBUTES HIDDEN
 #include "alloc_events.h"
 
 /* Avoid an implicit declaration of this helper. */
@@ -23,16 +25,14 @@ size_t malloc_usable_size(void *);
 #define USERPTR_TO_ALLOCPTR(u) (u)
 #endif
 
-void
-hook_init(void)
+void hook_init(void)
 {
 	// chain here
 	post_init();
 	__next_hook_init();
 }
 
-void *
-hook_malloc(size_t size, const void *caller)
+void *hook_malloc(size_t size, const void *caller)
 {
 	void *result;
 	#ifdef TRACE_MALLOC_HOOKS
@@ -54,8 +54,7 @@ hook_malloc(size_t size, const void *caller)
 	return ALLOCPTR_TO_USERPTR(result);
 }
 
-void
-hook_free(void *userptr, const void *caller)
+void hook_free(void *userptr, const void *caller)
 {
 	void *allocptr = USERPTR_TO_ALLOCPTR(userptr);
 	#ifdef TRACE_MALLOC_HOOKS
@@ -71,8 +70,7 @@ hook_free(void *userptr, const void *caller)
 	#endif
 }
 
-void *
-hook_memalign(size_t alignment, size_t size, const void *caller)
+void *hook_memalign(size_t alignment, size_t size, const void *caller)
 {
 	void *result;
 	size_t modified_size = size;
@@ -92,8 +90,7 @@ hook_memalign(size_t alignment, size_t size, const void *caller)
 }
 
 
-void *
-hook_realloc(void *userptr, size_t size, const void *caller)
+void *hook_realloc(void *userptr, size_t size, const void *caller)
 {
 	void *result_allocptr;
 	void *allocptr = USERPTR_TO_ALLOCPTR(userptr);

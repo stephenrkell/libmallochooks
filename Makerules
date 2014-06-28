@@ -24,7 +24,7 @@ endif
 $(warning CFLAGS is $(CFLAGS))
 
 %_fast.c: %.c
-	cp "$<" "$@"
+	cp "$<" "$@" && chmod a-w "$@"
 
 # object files for the individual hooks can be built fast- or non-fast
 .SECONDARY: $(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS))
@@ -38,20 +38,24 @@ malloc_hook_stubs_$(MALLOC_HOOKS_METHOD).o: CFLAGS += $(NON_FAST_CFLAGS)
 
 # building the actual hooks
 # FIXME: iterative version for multiple hooks
-malloc_hooks_$(MALLOC_HOOKS_METHOD).o: malloc_hook_stubs_$(MALLOC_HOOKS_METHOD).o $(patsubst %.c,%.o,$(patsubst %,%_hooks.c,$(BUILD_MALLOC_HOOKS)))
-	$(LD) -o "$@" -r malloc_hook_stubs_$(MALLOC_HOOKS_METHOD).o  \
-	--defsym __next_hook_malloc=__terminal_hook_malloc \
-	--defsym __next_hook_realloc=__terminal_hook_realloc \
-	--defsym __next_hook_free=__terminal_hook_free \
-	--defsym __next_hook_memalign=__terminal_hook_memalign \
-	$(patsubst %.c,%.o,$(patsubst %,%_hooks.c,$(BUILD_MALLOC_HOOKS)))
-malloc_hooks_$(MALLOC_HOOKS_METHOD)_fast.o: malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.o $(patsubst %_fast.c,%_fast.o,$(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS)))
-	$(LD) -o "$@" -r malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.o  \
-	--defsym __next_hook_malloc=__terminal_hook_malloc \
-	--defsym __next_hook_realloc=__terminal_hook_realloc \
-	--defsym __next_hook_free=__terminal_hook_free \
-	--defsym __next_hook_memalign=__terminal_hook_memalign \
-	$(patsubst %_fast.c,%_fast.o,$(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS)))
+# FIXME: these rules are incompatible with link-time optimisations (lto),
+# at least for current GNU gcc/binutils implementations. So instead we
+# have to use the preprocessor to define __next_hook_*.
+#malloc_hooks_$(MALLOC_HOOKS_METHOD).o: malloc_hook_stubs_$(MALLOC_HOOKS_METHOD).o $(patsubst %.c,%.o,$(patsubst %,%_hooks.c,$(BUILD_MALLOC_HOOKS)))
+#	$(LD) -o "$@" -r malloc_hook_stubs_$(MALLOC_HOOKS_METHOD).o  \
+#	--defsym __next_hook_malloc=__terminal_hook_malloc \
+#	--defsym __next_hook_realloc=__terminal_hook_realloc \
+#	--defsym __next_hook_free=__terminal_hook_free \
+#	--defsym __next_hook_memalign=__terminal_hook_memalign \
+#	$(patsubst %.c,%.o,$(patsubst %,%_hooks.c,$(BUILD_MALLOC_HOOKS)))
+#malloc_hooks_$(MALLOC_HOOKS_METHOD)_fast.o: malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.o $(patsubst %_fast.c,%_fast.o,$(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS)))
+#	$(LD) -o "$@" -r malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.o  \
+#	--defsym __next_hook_init=__terminal_hook_init \
+#	--defsym __next_hook_malloc=__terminal_hook_malloc \
+#	--defsym __next_hook_realloc=__terminal_hook_realloc \
+#	--defsym __next_hook_free=__terminal_hook_free \
+#	--defsym __next_hook_memalign=__terminal_hook_memalign \
+#	$(patsubst %_fast.c,%_fast.o,$(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS)))
 
 comma := ,
 
