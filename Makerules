@@ -15,7 +15,7 @@ vpath %.so $(dir $(realpath $(THIS_MAKEFILE)))
 CFLAGS += -I$(dir $(realpath $(THIS_MAKEFILE)))
 
 ifeq ($(FAST_CFLAGS),)
-FAST_CFLAGS += -O -flto
+FAST_CFLAGS += -O -flto -ffat-lto-objects
 endif
 ifeq ($(NON_FAST_CFLAGS),)
 NON_FAST_CFLAGS += -O0
@@ -23,8 +23,8 @@ endif
 
 $(warning CFLAGS is $(CFLAGS))
 
-%_fast.c: %.c
-	cp "$<" "$@" && chmod a-w "$@"
+%_fast.o: %.c
+	$(CC) $(CFLAGS) -c -o "$@" "$<"
 
 # object files for the individual hooks can be built fast- or non-fast
 .SECONDARY: $(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS))
