@@ -190,22 +190,28 @@ void * __terminal_hook_memalign(size_t boundary, size_t size, const void *caller
 // 	return __underlying_posix_memalign(memptr, alignment, size);
 // }
 
-/* also override malloc_usable_size s.t. we divert queries about the 
+/* also override malloc_usable_size s.t. we divert queries about the
  * early_malloc buffer into early_malloc_usable_size. */
-size_t malloc_usable_size(void *userptr)
+size_t __mallochooks_malloc_usable_size(void *userptr);
+size_t malloc_usable_size(void *userptr) __attribute__((weak,alias("__mallochooks_malloc_usable_size")));
+size_t __mallochooks_malloc_usable_size(void *userptr)
 {
+	size_t ret;
+
 	// this might silently return if we're in the middle of an early dlsym...
 	if (!__underlying_malloc_usable_size) initialize_underlying_malloc();
 	// ... in which case this test should succeed
 	if ((char*) userptr >= early_malloc_buf && (char*) userptr < EARLY_MALLOC_END)
 	{
-		return early_malloc_usable_size(userptr);
+		ret = early_malloc_usable_size(userptr);
 	}
 	else
 	{
 		assert(__underlying_malloc_usable_size);
-		return __underlying_malloc_usable_size(userptr);
+		ret = __underlying_malloc_usable_size(userptr);
 	}
+
+	return ret;
 }
 
 /* NOTE that we can easily get infinite regress here, so we guard against it 
