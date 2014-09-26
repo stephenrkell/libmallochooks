@@ -29,6 +29,7 @@ void __real_free(void *ptr);
 void *__real_realloc(void *ptr, size_t size);
 void *__real_memalign(size_t boundary, size_t size);
 int __real_posix_memalign(void **memptr, size_t alignment, size_t size);
+size_t __real_malloc_usable_size(void *ptr);
 /* NOTE: liballocs's preload.c wraps malloc_usable_size. Do we need to wrap it too? 
  * Since we don't use early malloc, I think the answer here is no. */
 
@@ -92,4 +93,9 @@ int __wrap_posix_memalign(void **memptr, size_t alignment, size_t size)
 		*memptr = ret;
 		return 0;
 	}
+}
+
+size_t __mallochooks_malloc_usable_size(void *ptr)
+{
+	return __real_malloc_usable_size(ptr);
 }

@@ -15,7 +15,8 @@ vpath %.so $(dir $(realpath $(THIS_MAKEFILE)))
 CFLAGS += -I$(dir $(realpath $(THIS_MAKEFILE)))
 
 ifeq ($(FAST_CFLAGS),)
-FAST_CFLAGS += -O -flto -ffat-lto-objects
+#FAST_CFLAGS += -O -flto -ffat-lto-objects
+FAST_CFLAGS += -O
 endif
 ifeq ($(NON_FAST_CFLAGS),)
 NON_FAST_CFLAGS += -O0
