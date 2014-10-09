@@ -1,19 +1,15 @@
 libmallochooks
 
-This contains some include files and (not yet finished...) some make 
-rules that will let you build a customised malloc instrumentation 
-library out of some high-level hook definitions.
+This contains some include files and make rules that will let you build
+a customised malloc instrumentation  library out of some high-level hook
+definitions.
 
-For now it supports glibc's malloc hooks and alternatively a generic 
-LD_PRELOAD approach.  If you want to compose multiple sets of hooks, you 
-have to write the linker command yourself at the moment, but the code is 
-written to support chaining without (hopefully) any editing of the 
-source. Building the LD_PRELOAD option also requires --defsym'ing 
-__wrap_{malloc,...} to their unprefixed names. I will hopefully fix this 
-soon....
+For now it supports glibc's (deprecated) malloc hooks, a generic
+load-time LD_PRELOAD approach and a generic compile/link-time wrapper
+approach.
 
-This is intended to obsolete the malloc_hooks.c file that can be found 
-on my web page. Until I finish the Makerules, the former will be easier 
-to use, but is glibc-specific.
+There's no documentation as yet, but you can see an example of their use
+in liballocs <https://github.com/stephenrkell/liballocs/>: look at
+malloc_hook_stubs_*.o rules in src/Makefile, and at heap_index_hooks.c.
 
 Stephen
