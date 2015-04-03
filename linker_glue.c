@@ -154,11 +154,23 @@ static __thread _Bool dlsym_active; // NOTE: this is NOT subsumed by in_hook
 #else
 static _Bool dlsym_active;
 #endif
+
+/* All our client to tell us more precisely that we should avoid dlopen
+ * and use early_malloc instead.
+ * 
+ * FIXME: the "right solution" is probably that the loader avoids using
+ * the main malloc, and we handle it specially (including instrumenting
+ * its calls to malloc, i.e. have liballocs etc. extend the loader directly). */
+extern _Bool __avoid_calling_dl_functions __attribute__((weak));
+
 static _Bool tried_to_initialize;
 static _Bool failed_to_initialize;
 static void initialize_underlying_malloc()
 {
-	if (dlsym_active) return;
+	if (dlsym_active || (&__avoid_calling_dl_functions && __avoid_calling_dl_functions))
+	{
+		return; // fail without prejudice -- will try again
+	}
 	assert(!(tried_to_initialize && failed_to_initialize));
 	if (tried_to_initialize && !failed_to_initialize)
 	{
