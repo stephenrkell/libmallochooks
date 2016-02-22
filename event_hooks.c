@@ -110,7 +110,8 @@ void *hook_realloc(void *userptr, size_t size, const void *caller)
 	else if (size == 0)
 	{
 		/* We behave like free(). */
-		pre_nonnull_free(userptr, malloc_usable_size(allocptr));
+		old_usable_size = malloc_usable_size(allocptr);
+		pre_nonnull_free(userptr, old_usable_size);
 	}
 	else
 	{
