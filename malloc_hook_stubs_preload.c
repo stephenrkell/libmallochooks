@@ -207,7 +207,12 @@ is_self_call(const void *caller)
 	if (!our_load_addr) our_load_addr = (char*) get_highest_loaded_object_below(&is_self_call)->l_addr;
 	if (!our_load_addr) abort(); /* we're supposed to be preloaded, not executable */
 	static char *text_segment_end;
-	if (!text_segment_end) text_segment_end = our_load_addr + (unsigned long) &_etext; /* HACK: ABS symbol, so not relocated. */
+	static uintptr_t raw_etext;
+	if (!raw_etext) raw_etext = (uintptr_t) &_etext;
+	if (!text_segment_end) text_segment_end
+	 = (((uintptr_t) &_etext) > (uintptr_t) our_load_addr) ?
+		(char*) &_etext : our_load_addr + (uintptr_t) &_etext;
+		/* HACK: ABS symbol, so possibly not relocated. */
 	return ((char*) caller >= our_load_addr && (char*) caller < text_segment_end);
 }
 
