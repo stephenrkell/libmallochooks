@@ -71,6 +71,29 @@
  * ... i.e. where libdl calls into us *via* libc. So we need to use a global
  * flag that says "avoid libdl calls" and let the client code figure it out.
  * In liballocs's case it will set the flag in the preload wrappers.
+ * 
+ * BUT WAIT SOME MORE. Even the above isn't enough, because of callchains like
+ * #4  0x00007f9378b6fece in hook_free (userptr=0x2aaaaaaacaf0, 
+ *     caller=0x7f93784ca326 <check_free+102>)
+ *     at /home/stephen/work/devel/libmallochooks.hg/event_hooks.c:63
+ * #5  0x00007f9378b82d29 in free (ptr=0x2aaaaaaacaf0)
+ *     at /var/local/stephen/work/devel/libmallochooks.hg/malloc_hook_stubs_preload.c:319
+ * #6  0x00007f93784ca326 in check_free (rec=0x7f93786cc100 <last_result>) at dlerror.c:201
+ * #7  0x00007f9378f8973a in _dl_fini () at dl-fini.c:252
+ * #8  0x00007f937813f509 in __run_exit_handlers (status=0, 
+ *     listp=0x7f93784c26c8 <__exit_funcs>, run_list_atexit=run_list_atexit@entry=true)
+ *     at exit.c:82
+ * #9  0x00007f937813f555 in __GI_exit (status=<optimised out>) at exit.c:104
+ * #10 0x00007f9378124ecc in __libc_start_main (main=0x401310 <main>, argc=1, 
+ *     argv=0x7fffe518e438, init=<optimised out>, fini=<optimised out>, 
+ *     rtld_fini=<optimised out>, stack_end=0x7fffe518e428) at libc-start.c:321
+ * #11 0x0000000000401569 in _start ()
+ * 
+ * i.e. libdl calls via libc, again, but not in any context where we could
+ * have set our handy flag. We're going to have to require that the private
+ * allocator can tell us whether the chunk is one that it issued. For the
+ * old early_malloc this was easy. Now that we use a dlmalloc instance, we
+ * have to be a bit more crafty.
  */
 void *__private_malloc(size_t size) __attribute__((visibility("protected")));
 void *__private_calloc(size_t nmemb, size_t size) __attribute__((visibility("protected")));
@@ -79,6 +102,11 @@ void *__private_realloc(void *ptr, size_t size) __attribute__((visibility("prote
 void *__private_memalign(size_t boundary, size_t size) __attribute__((visibility("protected")));
 int __private_posix_memalign(void **memptr, size_t alignment, size_t size) __attribute__((visibility("protected")));
 size_t __private_malloc_usable_size(void *userptr) __attribute__((visibility("protected")));
+/* This is an optional function which the private malloc can expose to allow 
+ * querying whether it owns a chunk. This is useful to disambiguate between
+ * private and non-private chunks when a free() or realloc() comes in. 
+ * If it's not provided, we guess.*/
+_Bool __private_malloc_is_chunk_start(void *userptr) __attribute__((weak,visibility("protected")));
 
 extern const char __ldso_name[] __attribute__((weak));
 extern _Bool      __avoid_libdl_calls __attribute__((weak));
@@ -275,12 +303,17 @@ is_libdl_or_ldso_call(const void *caller)
 			|| is_in_libdl;
 }
 
+/* To detect reentrancy, we share a single flag. This is because,
+ * say, a calloc that gets hooked might end up calling malloc. We
+ * still don't want reentrancy (e.g. we'll hang re-acquiring glibc
+ * malloc's non-recursive arena mutex). */
+static __thread _Bool we_are_active;
+
 /* These are our actual hook stubs. */
 void *malloc(size_t size)
 {
-	static __thread _Bool malloc_active;
-	_Bool is_reentrant_call = malloc_active;
-	if (!is_reentrant_call) malloc_active = 1;
+	_Bool is_reentrant_call = we_are_active;
+	if (!is_reentrant_call) we_are_active = 1;
 	void *ret;
 	if (!is_reentrant_call
 			 && !is_self_call(__builtin_return_address(0))
@@ -288,14 +321,13 @@ void *malloc(size_t size)
 	{
 		ret = hook_malloc(size, __builtin_return_address(0));
 	} else ret = __private_malloc(size);
-	if (!is_reentrant_call) malloc_active = 0;
+	if (!is_reentrant_call) we_are_active = 0;
 	return ret;
 }
 void *calloc(size_t nmemb, size_t size)
 {
-	static __thread _Bool calloc_active;
-	_Bool is_reentrant_call = calloc_active;
-	if (!is_reentrant_call) calloc_active = 1;
+	_Bool is_reentrant_call = we_are_active;
+	if (!is_reentrant_call) we_are_active = 1;
 	void *ret;
 	if (!is_reentrant_call
 			 && !is_self_call(__builtin_return_address(0))
@@ -304,40 +336,40 @@ void *calloc(size_t nmemb, size_t size)
 		ret = hook_malloc(nmemb * size, __builtin_return_address(0));
 	} else ret = __private_calloc(nmemb, size);
 	if (ret) bzero(ret, nmemb * size);
-	if (!is_reentrant_call) calloc_active = 0;
+	if (!is_reentrant_call) we_are_active = 0;
 	return ret;
 }
 void free(void *ptr)
 {
-	static __thread _Bool free_active;
-	_Bool is_reentrant_call = free_active;
-	if (!is_reentrant_call) free_active = 1;
-	if (!is_reentrant_call
+	_Bool is_reentrant_call = we_are_active;
+	if (!is_reentrant_call) we_are_active = 1;
+	if ((!&__private_malloc_is_chunk_start && !is_reentrant_call
 			 && !is_self_call(__builtin_return_address(0))
 			 && !is_libdl_or_ldso_call(__builtin_return_address(0)))
+		|| (&__private_malloc_is_chunk_start && !__private_malloc_is_chunk_start(ptr)))
 	{
 		hook_free(ptr, __builtin_return_address(0));
 	} else __private_free(ptr);
-	if (!is_reentrant_call) free_active = 0;
+	if (!is_reentrant_call) we_are_active = 0;
 }
 void *realloc(void *ptr, size_t size)
 {
-	static __thread _Bool realloc_active;
-	_Bool is_reentrant_call = realloc_active;
+	_Bool is_reentrant_call = we_are_active;
 	void *ret;
-	if (!is_reentrant_call
+	if ((!&__private_malloc_is_chunk_start && !is_reentrant_call
 			 && !is_self_call(__builtin_return_address(0))
 			 && !is_libdl_or_ldso_call(__builtin_return_address(0)))
+		|| (&__private_malloc_is_chunk_start && !__private_malloc_is_chunk_start(ptr)))
 	{
 		ret = hook_realloc(ptr, size, __builtin_return_address(0));
 	} else ret = __private_realloc(ptr, size);
-	if (!is_reentrant_call) realloc_active = 0;
+	if (!is_reentrant_call) we_are_active = 0;
 	return ret;
 }
 void *memalign(size_t boundary, size_t size)
 {
-	static __thread _Bool memalign_active;
-	_Bool is_reentrant_call = memalign_active;
+	_Bool is_reentrant_call = we_are_active;
+	if (!is_reentrant_call) we_are_active = 1;
 	void *ret;
 	if (!is_reentrant_call
 			 && !is_self_call(__builtin_return_address(0))
@@ -345,13 +377,13 @@ void *memalign(size_t boundary, size_t size)
 	{
 		ret = hook_memalign(boundary, size, __builtin_return_address(0));
 	} else ret = __private_memalign(boundary, size);
-	if (!is_reentrant_call) memalign_active = 0;
+	if (!is_reentrant_call) we_are_active = 0;
 	return ret;
 }
 int posix_memalign(void **memptr, size_t alignment, size_t size)
 {
-	static __thread _Bool posix_memalign_active;
-	_Bool is_reentrant_call = posix_memalign_active;
+	_Bool is_reentrant_call = we_are_active;
+	if (!is_reentrant_call) we_are_active = 1;
 	void *retptr;
 	int retval;
 	if (!is_reentrant_call
@@ -368,6 +400,6 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
 		}
 	}
 	else retval = __private_posix_memalign(memptr, alignment, size);
-	if (!is_reentrant_call) posix_memalign_active = 0;
+	if (!is_reentrant_call) we_are_active = 0;
 	return retval;
 }
