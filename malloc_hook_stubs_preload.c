@@ -94,6 +94,61 @@
  * allocator can tell us whether the chunk is one that it issued. For the
  * old early_malloc this was easy. Now that we use a dlmalloc instance, we
  * have to be a bit more crafty.
+ * 
+ * And YET AGAIN we have some subtle problems. Consider this.
+ * #0  pthread_rwlock_unlock ()
+ *     at ../nptl/sysdeps/unix/sysv/linux/x86_64/pthread_rwlock_unlock.S:94
+ * #1  0x00007ffff70aadbf in __dcigettext (
+ *     domainname=0x7ffff71f6983 <_libc_intl_domainname> "libc", 
+ *     msgid1=0x7ffff7fddd60 "cannot open shared object file", msgid2=msgid2@entry=0x0, 
+ *     plural=plural@entry=0, n=n@entry=0, category=category@entry=5) at dcigettext.c:627
+ * #2  0x00007ffff70a988f in __GI___dcgettext (domainname=<optimised out>, 
+ *     msgid=<optimised out>, category=category@entry=5) at dcgettext.c:52
+ * #3  0x00007ffff6c5b51d in __dlerror () at dlerror.c:99
+ * #4  0x00007ffff7a994d2 in dlerror ()
+ *     at /var/local/stephen/work/devel/liballocs.hg/src/preload.c:380
+ * #5  0x00007ffff7a9a19c in initialize_underlying_malloc ()
+ *     at /var/local/stephen/work/devel/libmallochooks.hg/malloc_hook_stubs_preload.c:144
+ * #6  0x00007ffff7a9a678 in __terminal_hook_malloc (size=16, caller=<optimised out>)
+ *     at /var/local/stephen/work/devel/libmallochooks.hg/malloc_hook_stubs_preload.c:169
+ * #7  0x00007ffff79bdd78 in hook_malloc (size=5, 
+ *     caller=0x7ffff70ad905 <_nl_normalize_codeset+101>)
+ *     at /home/stephen/work/devel/libmallochooks.hg/event_hooks.c:46
+ * #8  0x00007ffff7a9a814 in malloc (size=5)
+ *     at /var/local/stephen/work/devel/libmallochooks.hg/malloc_hook_stubs_preload.c:322
+ * #9  0x00007ffff70ad905 in _nl_normalize_codeset (
+ *     codeset=codeset@entry=0x7fffffffe6a8 "UTF-8", name_len=name_len@entry=5)
+ *     at ../intl/l10nflist.c:351
+ * #10 0x00007ffff70a7e28 in _nl_load_locale_from_archive (category=category@entry=12, 
+ *     namep=namep@entry=0x7fffffffd0d0) at loadarchive.c:174
+ * #11 0x00007ffff70a6aa7 in _nl_find_locale (locale_path=0x0, locale_path_len=0, 
+ *     category=category@entry=12, name=name@entry=0x7fffffffd0d0) at findlocale.c:106
+ * #12 0x00007ffff70a658a in __GI_setlocale (category=12, locale=<optimised out>)
+ *     at setlocale.c:301
+ * #13 0x0000000000403930 in ?? ()
+ * #14 0x00007ffff709aec5 in __libc_start_main (main=0x4038e0, argc=9, argv=0x7fffffffd2a8, 
+    init=<optimised out>, fini=<optimised out>, rtld_fini=<optimised out>, 
+    stack_end=0x7fffffffd298) at libc-start.c:287
+ * 
+ * What's happening here is that 
+ * - the process's startup code is calling __GI_setlocale
+ * - which has its own (non-reentrant) RW lock to protect some state
+ * - and it is this doing a malloc...
+ * - ... which our hooks are handling
+ * - we call dlerror() to clear the error state
+ * - this, unfortunately, calls __GI_dcgettext which takes *the same* lock
+ *     as __GI_setlocale
+ * - it later double-exits, wrapping around the "__nr_readers" counter to a 
+ *     high positive number.
+ * 
+ * What should happen: ideally our malloc would be able to probe for any
+ * mutexes that it might contend for; if called in a context where they're already
+ * taken, do the private malloc. That's clearly infeasible.
+ * 
+ * Instead, we just avoid dlerror(). HMM. That doesn't help if we actually
+ * hit an error path in any of our dlsym. HACK: just assume we don't, for now.
+ * The REAL FIX is to use relf.h's hand-rolled link map functions. That creates
+ * annoyingly cyclic dependencies between liballocs and mallochooks. FIXME please.
  */
 void *__private_malloc(size_t size) __attribute__((visibility("protected")));
 void *__private_calloc(size_t nmemb, size_t size) __attribute__((visibility("protected")));
@@ -137,11 +192,11 @@ static void initialize_underlying_malloc()
 	else
 	{
 #define fail(symname) do { \
-fprintf(stderr, "dlsym(" #symname ") error: %s\n", dlerror()); \
+fprintf(stderr, "dlsym(" #symname ") error: (omitted for HACKy reasons)\n"/*, dlerror()*/); \
 failed_to_initialize = 1; \
  } while(0)
 		tried_to_initialize = 1;
-		dlerror();
+		// dlerror();
 		__underlying_malloc = (void*(*)(size_t)) dlsym(RTLD_NEXT, "malloc");
 		if (!__underlying_malloc) fail(malloc);
 		__underlying_free = (void(*)(void*)) dlsym(RTLD_NEXT, "free");
