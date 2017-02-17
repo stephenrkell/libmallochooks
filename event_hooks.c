@@ -11,7 +11,9 @@
 #undef HOOK_PREFIX
 
 #define HIDDEN __attribute__((visibility("hidden")))
+#ifndef ALLOC_EVENT_ATTRIBUTES
 #define ALLOC_EVENT_ATTRIBUTES HIDDEN
+#endif
 #include "alloc_events.h"
 
 /* Avoid an implicit declaration of this helper. */
@@ -28,7 +30,7 @@ size_t malloc_usable_size(void *);
 void hook_init(void)
 {
 	// chain here
-	post_init();
+	ALLOC_EVENT(post_init)();
 	__next_hook_init();
 }
 
@@ -40,12 +42,12 @@ void *hook_malloc(size_t size, const void *caller)
 	#endif
 	size_t modified_size = size;
 	size_t modified_alignment = sizeof (void *);
-	pre_alloc(&modified_size, &modified_alignment, caller);
+	ALLOC_EVENT(pre_alloc)(&modified_size, &modified_alignment, caller);
 	assert(modified_alignment == sizeof (void *));
 	
 	result = __next_hook_malloc(modified_size, caller);
 	
-	if (result) post_successful_alloc(result, modified_size, modified_alignment, 
+	if (result) ALLOC_EVENT(post_successful_alloc)(result, modified_size, modified_alignment, 
 			size, sizeof (void*), caller);
 	#ifdef TRACE_MALLOC_HOOKS
 	fprintf(stderr, "malloc(%zu) returned chunk at %p (modified size: %zu, userptr: %p)\n", 
@@ -60,11 +62,11 @@ void hook_free(void *userptr, const void *caller)
 	#ifdef TRACE_MALLOC_HOOKS
 	if (userptr != NULL) fprintf(stderr, "freeing chunk at %p (userptr %p)\n", allocptr, userptr);
 	#endif 
-	if (userptr != NULL) pre_nonnull_free(userptr, malloc_usable_size(allocptr));
+	if (userptr != NULL) ALLOC_EVENT(pre_nonnull_free)(userptr, malloc_usable_size(allocptr));
 	
 	__next_hook_free(allocptr, caller);
 	
-	if (userptr != NULL) post_nonnull_free(userptr);
+	if (userptr != NULL) ALLOC_EVENT(post_nonnull_free)(userptr);
 	#ifdef TRACE_MALLOC_HOOKS
 	fprintf(stderr, "freed chunk at %p\n", allocptr);
 	#endif
@@ -78,11 +80,11 @@ void *hook_memalign(size_t alignment, size_t size, const void *caller)
 	#ifdef TRACE_MALLOC_HOOKS
 	fprintf(stderr, "calling memalign(%zu, %zu)\n", alignment, size);
 	#endif
-	pre_alloc(&modified_size, &modified_alignment, caller);
+	ALLOC_EVENT(pre_alloc)(&modified_size, &modified_alignment, caller);
 	
 	result = __next_hook_memalign(modified_alignment, modified_size, caller);
 	
-	if (result) post_successful_alloc(result, modified_size, modified_alignment, size, alignment, caller);
+	if (result) ALLOC_EVENT(post_successful_alloc)(result, modified_size, modified_alignment, size, alignment, caller);
 	#ifdef TRACE_MALLOC_HOOKS
 	printf ("memalign(%zu, %zu) returned %p\n", alignment, size, result);
 	#endif
@@ -105,13 +107,13 @@ void *hook_realloc(void *userptr, size_t size, const void *caller)
 	if (userptr == NULL)
 	{
 		/* We behave like malloc(). */
-		pre_alloc(&size, &alignment, caller);
+		ALLOC_EVENT(pre_alloc)(&size, &alignment, caller);
 	}
 	else if (size == 0)
 	{
 		/* We behave like free(). */
 		old_usable_size = malloc_usable_size(allocptr);
-		pre_nonnull_free(userptr, old_usable_size);
+		ALLOC_EVENT(pre_nonnull_free)(userptr, old_usable_size);
 	}
 	else
 	{
@@ -120,7 +122,7 @@ void *hook_realloc(void *userptr, size_t size, const void *caller)
 		 * If it changes, we'll need to know the old usable size to access
 		 * the old trailer. */
 		old_usable_size = malloc_usable_size(allocptr);
-		pre_nonnull_nonzero_realloc(userptr, size, caller);
+		ALLOC_EVENT(pre_nonnull_nonzero_realloc)(userptr, size, caller);
 	}
 	
 	/* Modify the size, as usual, *only if* size != 0 */
@@ -128,7 +130,7 @@ void *hook_realloc(void *userptr, size_t size, const void *caller)
 	size_t modified_alignment = sizeof (void *);
 	if (size != 0)
 	{
-		pre_alloc(&modified_size, &modified_alignment, caller);
+		ALLOC_EVENT(pre_alloc)(&modified_size, &modified_alignment, caller);
 		assert(modified_alignment == sizeof (void *));
 	}
 
@@ -137,18 +139,18 @@ void *hook_realloc(void *userptr, size_t size, const void *caller)
 	if (userptr == NULL)
 	{
 		/* like malloc() */
-		if (result_allocptr) post_successful_alloc(result_allocptr, modified_size, modified_alignment, 
+		if (result_allocptr) ALLOC_EVENT(post_successful_alloc)(result_allocptr, modified_size, modified_alignment, 
 				size, sizeof (void*), caller);
 	}
 	else if (size == 0)
 	{
 		/* like free */
-		post_nonnull_free(userptr);
+		ALLOC_EVENT(post_nonnull_free)(userptr);
 	}
 	else
 	{
 		/* bona fide realloc */
-		post_nonnull_nonzero_realloc(userptr, modified_size, old_usable_size, caller, result_allocptr);
+		ALLOC_EVENT(post_nonnull_nonzero_realloc)(userptr, modified_size, old_usable_size, caller, result_allocptr);
 	}
 
 	#ifdef TRACE_MALLOC_HOOKS
