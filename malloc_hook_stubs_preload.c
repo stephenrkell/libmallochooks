@@ -183,10 +183,14 @@ static void initialize_underlying_malloc()
 	if (tried_to_initialize && !failed_to_initialize)
 	{
 		// we should be okay (shouldn't really have been called though)
-		assert(__underlying_malloc && __underlying_free && 
-			__underlying_memalign && __underlying_realloc && 
-			__underlying_calloc && __underlying_posix_memalign &&
-			__underlying_malloc_usable_size);
+		/*assert(__underlying_malloc);
+		assert(__underlying_free);
+		assert(__underlying_memalign);
+		assert(__underlying_realloc);
+		assert(__underlying_calloc);
+		assert(__underlying_posix_memalign);
+		assert(__underlying_malloc_usable_size);*/
+		warnx("warning: ignoring reentrant initialization of malloc wrappers");
 		return;
 	}
 	else
@@ -197,19 +201,26 @@ failed_to_initialize = 1; \
  } while(0)
 		tried_to_initialize = 1;
 		// dlerror();
-		__underlying_malloc = (void*(*)(size_t)) dlsym(RTLD_NEXT, "malloc");
+		__underlying_malloc = (void*(*)(size_t)) dlsym(RTLD_DEFAULT, "__real_malloc");
+		if (!__underlying_malloc) __underlying_malloc = (void*(*)(size_t)) dlsym(RTLD_NEXT, "malloc");
 		if (!__underlying_malloc) fail(malloc);
-		__underlying_free = (void(*)(void*)) dlsym(RTLD_NEXT, "free");
+		__underlying_free = (void(*)(void*)) dlsym(RTLD_DEFAULT, "__real_free");
+		if (!__underlying_free) __underlying_free = (void(*)(void*)) dlsym(RTLD_NEXT, "free");
 		if (!__underlying_free) fail(free);
-		__underlying_memalign = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "memalign");
+		__underlying_memalign = (void*(*)(size_t, size_t)) dlsym(RTLD_DEFAULT, "__real_memalign");
+		if (!__underlying_memalign) __underlying_memalign = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "memalign");
 		/* Don't fail for memalign -- it's optional. */
-		__underlying_realloc = (void*(*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
+		__underlying_realloc = (void*(*)(void*, size_t)) dlsym(RTLD_DEFAULT, "__real_realloc");
+		if (!__underlying_realloc) __underlying_realloc = (void*(*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
 		if (!__underlying_realloc) fail(realloc);
-		__underlying_calloc = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
+		__underlying_calloc = (void*(*)(size_t, size_t)) dlsym(RTLD_DEFAULT, "__real_calloc");
+		if (!__underlying_calloc) __underlying_calloc = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
 		if (!__underlying_calloc) fail(calloc);
-		__underlying_posix_memalign = (int(*)(void**, size_t, size_t)) dlsym(RTLD_NEXT, "posix_memalign");
+		__underlying_posix_memalign = (int(*)(void**, size_t, size_t)) dlsym(RTLD_DEFAULT, "__real_posix_memalign");
+		if (!__underlying_posix_memalign) __underlying_posix_memalign = (int(*)(void**, size_t, size_t)) dlsym(RTLD_NEXT, "posix_memalign");
 		if (!__underlying_posix_memalign) fail(posix_memalign);
-		__underlying_malloc_usable_size = (size_t(*)(void*)) dlsym(RTLD_NEXT, "malloc_usable_size");
+		__underlying_malloc_usable_size = (size_t(*)(void*)) dlsym(RTLD_DEFAULT, "__real_malloc_usable_size");
+		if (!__underlying_malloc_usable_size) __underlying_malloc_usable_size = (size_t(*)(void*)) dlsym(RTLD_NEXT, "malloc_usable_size");
 		if (!__underlying_malloc_usable_size) fail(malloc_usable_size);
 #undef fail
 	}
