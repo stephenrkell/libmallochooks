@@ -6,7 +6,7 @@
 #undef HOOK_PREFIX
 #include "hook_protos.h"
 
-#define HOOK_PREFIX(i) __next_ ## i
+#define HOOK_PREFIX(i) __next_hook_ ## i
 #include "hook_protos.h"
 #undef HOOK_PREFIX
 

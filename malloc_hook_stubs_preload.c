@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <link.h>
+#include <err.h>
 
 #include <errno.h>
 
@@ -15,12 +16,19 @@
 
 /* Prototype the hook_* functions. */
 #undef HOOK_PREFIX
-#define HOOK_PREFIX(i) i
+#define HOOK_PREFIX(i) hook_ ## i
 #include "hook_protos.h"
 #undef HOOK_PREFIX
 /* Prototype the __terminal_hook_* functions. */
-#define HOOK_PREFIX(i) __terminal_ ## i
+#define HOOK_PREFIX(i) __terminal_hook_ ## i
 #include "hook_protos.h"
+
+#ifdef MALLOC_PREFIX
+#error "Not supported yet: preload hooks for prefixed mallocs."
+#endif
+
+/* Also prototype malloc itself if necessary. */
+#include "malloc_protos.h"
 
 /* NOTE that we can easily get infinite regress, so we guard against it 
  * explicitly. We use a private malloc if we detect a reentrant call or

@@ -13,7 +13,7 @@
 #undef HOOK_PREFIX
 #include "hook_protos.h"
 /* Prototype the __terminal_hook_* functions. */
-#define HOOK_PREFIX(i) __terminal_ ## i
+#define HOOK_PREFIX(i) __terminal_hook_ ## i
 #include "hook_protos.h"
 #undef HOOK_PREFIX
 
