@@ -155,21 +155,24 @@
  * 
  * Instead, we just avoid dlerror(). HMM. That doesn't help if we actually
  * hit an error path in any of our dlsym. HACK: just assume we don't, for now.
- * The REAL FIX is to use relf.h's hand-rolled link map functions. That creates
- * annoyingly cyclic dependencies between liballocs and mallochooks. FIXME please.
+ * The REAL FIX is to use relf.h's hand-rolled link map functions. We can do this
+ * without cyclic dependency, now that relf.h is in librunt. FIXME please.
  */
-void *__private_malloc(size_t size) __attribute__((visibility("protected")));
-void *__private_calloc(size_t nmemb, size_t size) __attribute__((visibility("protected")));
-void __private_free(void *ptr) __attribute__((visibility("protected")));
-void *__private_realloc(void *ptr, size_t size) __attribute__((visibility("protected")));
-void *__private_memalign(size_t boundary, size_t size) __attribute__((visibility("protected")));
-int __private_posix_memalign(void **memptr, size_t alignment, size_t size) __attribute__((visibility("protected")));
-size_t __private_malloc_usable_size(void *userptr) __attribute__((visibility("protected")));
+/* We used to declare these as protected visibility, but this is pretty pointless
+ * -- it's the visibility of the definition that matters. Also, it provoked a
+ * bug in gold (#24286) when combined with liballocs's use of --defsym. So avoid. */
+void *__private_malloc(size_t size);
+void *__private_calloc(size_t nmemb, size_t size);
+void __private_free(void *ptr);
+void *__private_realloc(void *ptr, size_t size);
+void *__private_memalign(size_t boundary, size_t size);
+int __private_posix_memalign(void **memptr, size_t alignment, size_t size);
+size_t __private_malloc_usable_size(void *userptr);
 /* This is an optional function which the private malloc can expose to allow 
  * querying whether it owns a chunk. This is useful to disambiguate between
  * private and non-private chunks when a free() or realloc() comes in. 
  * If it's not provided, we guess.*/
-_Bool __private_malloc_is_chunk_start(void *userptr) __attribute__((weak,visibility("protected")));
+_Bool __private_malloc_is_chunk_start(void *userptr) __attribute__((weak));
 
 extern const char __ldso_name[] __attribute__((weak));
 extern _Bool      __avoid_libdl_calls __attribute__((weak));
@@ -203,7 +206,7 @@ static void initialize_underlying_malloc()
 	}
 	else
 	{
-#define fail(symname) do { \
+#define fail(symname) do { /* see comment above for why we avoid dlerror() here */ \
 fprintf(stderr, "dlsym(" #symname ") error: (omitted for HACKy reasons)\n"/*, dlerror()*/); \
 failed_to_initialize = 1; \
  } while(0)
