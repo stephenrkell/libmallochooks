@@ -62,7 +62,7 @@ void hook_free(void *userptr, const void *caller)
 	#ifdef TRACE_MALLOC_HOOKS
 	if (userptr != NULL) fprintf(stderr, "freeing chunk at %p (userptr %p)\n", allocptr, userptr);
 	#endif 
-	if (userptr != NULL) ALLOC_EVENT(pre_nonnull_free)(userptr, malloc_usable_size(allocptr));
+	if (userptr != NULL && ALLOC_EVENT(pre_nonnull_free)(userptr, malloc_usable_size(allocptr))) return;
 	
 	__next_hook_free(allocptr, caller);
 	
