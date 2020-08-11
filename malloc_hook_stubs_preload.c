@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <link.h>
 #include <err.h>
+#include "relf.h"
 
 #include <errno.h>
 
@@ -154,7 +155,7 @@
  * taken, do the private malloc. That's clearly infeasible.
  * 
  * Instead, we just avoid dlerror(). HMM. That doesn't help if we actually
- * hit an error path in any of our dlsym. HACK: just assume we don't, for now.
+ * hit an error path in any of our dlsym.
  * The REAL FIX is to use relf.h's hand-rolled link map functions. We can do this
  * without cyclic dependency, now that relf.h is in librunt. FIXME please.
  */
@@ -207,31 +208,31 @@ static void initialize_underlying_malloc()
 	else
 	{
 #define fail(symname) do { /* see comment above for why we avoid dlerror() here */ \
-fprintf(stderr, "dlsym(" #symname ") error: (omitted for HACKy reasons)\n"/*, dlerror()*/); \
+fprintf(stderr, "fake_dlsym(" #symname ") error: (omitted for HACKy reasons)\n"/*, dlerror()*/); \
 failed_to_initialize = 1; \
  } while(0)
 		tried_to_initialize = 1;
 		// dlerror();
-		__underlying_malloc = (void*(*)(size_t)) dlsym(RTLD_DEFAULT, "__real_malloc");
-		if (!__underlying_malloc) __underlying_malloc = (void*(*)(size_t)) dlsym(RTLD_NEXT, "malloc");
+		__underlying_malloc = (void*(*)(size_t)) fake_dlsym(RTLD_DEFAULT, "__real_malloc");
+		if (!__underlying_malloc) __underlying_malloc = (void*(*)(size_t)) fake_dlsym(RTLD_NEXT, "malloc");
 		if (!__underlying_malloc) fail(malloc);
-		__underlying_free = (void(*)(void*)) dlsym(RTLD_DEFAULT, "__real_free");
-		if (!__underlying_free) __underlying_free = (void(*)(void*)) dlsym(RTLD_NEXT, "free");
+		__underlying_free = (void(*)(void*)) fake_dlsym(RTLD_DEFAULT, "__real_free");
+		if (!__underlying_free) __underlying_free = (void(*)(void*)) fake_dlsym(RTLD_NEXT, "free");
 		if (!__underlying_free) fail(free);
-		__underlying_memalign = (void*(*)(size_t, size_t)) dlsym(RTLD_DEFAULT, "__real_memalign");
-		if (!__underlying_memalign) __underlying_memalign = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "memalign");
+		__underlying_memalign = (void*(*)(size_t, size_t)) fake_dlsym(RTLD_DEFAULT, "__real_memalign");
+		if (!__underlying_memalign) __underlying_memalign = (void*(*)(size_t, size_t)) fake_dlsym(RTLD_NEXT, "memalign");
 		/* Don't fail for memalign -- it's optional. */
-		__underlying_realloc = (void*(*)(void*, size_t)) dlsym(RTLD_DEFAULT, "__real_realloc");
-		if (!__underlying_realloc) __underlying_realloc = (void*(*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
+		__underlying_realloc = (void*(*)(void*, size_t)) fake_dlsym(RTLD_DEFAULT, "__real_realloc");
+		if (!__underlying_realloc) __underlying_realloc = (void*(*)(void*, size_t)) fake_dlsym(RTLD_NEXT, "realloc");
 		if (!__underlying_realloc) fail(realloc);
-		__underlying_calloc = (void*(*)(size_t, size_t)) dlsym(RTLD_DEFAULT, "__real_calloc");
-		if (!__underlying_calloc) __underlying_calloc = (void*(*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
+		__underlying_calloc = (void*(*)(size_t, size_t)) fake_dlsym(RTLD_DEFAULT, "__real_calloc");
+		if (!__underlying_calloc) __underlying_calloc = (void*(*)(size_t, size_t)) fake_dlsym(RTLD_NEXT, "calloc");
 		if (!__underlying_calloc) fail(calloc);
-		__underlying_posix_memalign = (int(*)(void**, size_t, size_t)) dlsym(RTLD_DEFAULT, "__real_posix_memalign");
-		if (!__underlying_posix_memalign) __underlying_posix_memalign = (int(*)(void**, size_t, size_t)) dlsym(RTLD_NEXT, "posix_memalign");
+		__underlying_posix_memalign = (int(*)(void**, size_t, size_t)) fake_dlsym(RTLD_DEFAULT, "__real_posix_memalign");
+		if (!__underlying_posix_memalign) __underlying_posix_memalign = (int(*)(void**, size_t, size_t)) fake_dlsym(RTLD_NEXT, "posix_memalign");
 		if (!__underlying_posix_memalign) fail(posix_memalign);
-		__underlying_malloc_usable_size = (size_t(*)(void*)) dlsym(RTLD_DEFAULT, "__real_malloc_usable_size");
-		if (!__underlying_malloc_usable_size) __underlying_malloc_usable_size = (size_t(*)(void*)) dlsym(RTLD_NEXT, "malloc_usable_size");
+		__underlying_malloc_usable_size = (size_t(*)(void*)) fake_dlsym(RTLD_DEFAULT, "__real_malloc_usable_size");
+		if (!__underlying_malloc_usable_size) __underlying_malloc_usable_size = (size_t(*)(void*)) fake_dlsym(RTLD_NEXT, "malloc_usable_size");
 		if (!__underlying_malloc_usable_size) fail(malloc_usable_size);
 #undef fail
 	}
@@ -282,43 +283,19 @@ size_t __mallochooks_malloc_usable_size(void *userptr)
 	return ret;
 }
 
-/* Stolen from relf.h, but pasted here to stay self-contained. */
-extern struct r_debug _r_debug;
-extern int _etext; /* NOTE: to resolve to *this object*'s _etext, we *must* be linked -Bsymbolic. */
-static inline
-struct link_map*
-get_highest_loaded_object_below(void *ptr)
-{
-	/* Walk all the loaded objects' load addresses. 
-	 * The load address we want is the next-lower one. */
-	struct link_map *highest_seen = NULL;
-	for (struct link_map *l = _r_debug.r_map; l; l = l->l_next)
-	{
-		if (!highest_seen || 
-				((char*) l->l_addr > (char*) highest_seen->l_addr
-					&& (char*) l->l_addr <= (char*) ptr))
-		{
-			highest_seen = l;
-		}
-	}
-	return highest_seen;
-}
-
 static 
 _Bool
 is_self_call(const void *caller)
 {
-	static char *our_load_addr;
-	if (!our_load_addr) our_load_addr = (char*) get_highest_loaded_object_below(&is_self_call)->l_addr;
-	if (!our_load_addr) abort(); /* we're supposed to be preloaded, not executable */
-	static char *text_segment_end;
-	static uintptr_t raw_etext;
-	if (!raw_etext) raw_etext = (uintptr_t) &_etext;
-	if (!text_segment_end) text_segment_end
-	 = (((uintptr_t) &_etext) > (uintptr_t) our_load_addr) ?
-		(char*) &_etext : our_load_addr + (uintptr_t) &_etext;
-		/* HACK: ABS symbol, so possibly not relocated. */
-	return ((char*) caller >= our_load_addr && (char*) caller < text_segment_end);
+	static void *our_load_addr;
+	if (!our_load_addr) our_load_addr
+	 = (void*) get_highest_loaded_object_below(&is_self_call)->l_addr;
+	if (!our_load_addr) abort(); /* we're supposed to be preloaded, not executable,
+	 so load addr should not be zero */
+	// short cut: if we're loaded above the caller, it's not in our segment
+	if ((uintptr_t) our_load_addr > (uintptr_t) caller) return 0;
+	void *caller_load_addr = get_highest_loaded_object_below((void*) caller);
+	return our_load_addr == caller_load_addr;
 }
 
 static 
@@ -383,7 +360,24 @@ is_libdl_or_ldso_call(const void *caller)
 /* To detect reentrancy, we share a single flag. This is because,
  * say, a calloc that gets hooked might end up calling malloc. We
  * still don't want reentrancy (e.g. we'll hang re-acquiring glibc
- * malloc's non-recursive arena mutex). */
+ * malloc's non-recursive arena mutex).
+ *
+ * FIXME: can we document why this strategy is sane? I'm not 100%
+ * sure myself. The main point seems to be that it's unreasonable
+ * to prohibit hooks from themselves needing to do malloc, so there
+ * needs to be a "backup malloc" for them to use. But then how do
+ * we ensure that the correct "free" (i.e. private or non-) is paired
+ * with that? I'm sure I had an answer to this, once upon a time.
+ * We seem to use __private_malloc_is_chunk_start(). That is either
+ * a nasty hack which ought to go away, or (in the case of liballocs)
+ * a genius bit of self-application: of course, allocators can tell
+ * us where their chunks start. I think the lesson is that it's the
+ * client's job, i.e. for us liballocs's job, to handle the reentrant
+ * case; we should say something clear about how these are/aren't
+ * handled, and probably shouldn't be calling __private_malloc
+ * ourselves. Can we say it's a bug if there's a reentrant call?
+ * i.e. the hook_malloc logic is responsible for not calling back
+ * into (this set of) hooks. */
 static __thread _Bool we_are_active;
 
 /* These are our actual hook stubs. */
@@ -426,7 +420,9 @@ void free(void *ptr)
 		|| (&__private_malloc_is_chunk_start && !__private_malloc_is_chunk_start(ptr)))
 	{
 		hook_free(ptr, __builtin_return_address(0));
-	} else __private_free(ptr);
+	} else __private_free(ptr); // FIXME: seems dangerous: if we don't have
+	// a __private_malloc_is_chunk_start, we might be __private_free-ing a
+	// chunk that is not privately-alloc'd.
 	if (!is_reentrant_call) we_are_active = 0;
 }
 void *realloc(void *ptr, size_t size)
