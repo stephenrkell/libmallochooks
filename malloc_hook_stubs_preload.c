@@ -214,26 +214,26 @@ failed_to_initialize = 1; \
 		tried_to_initialize = 1;
 		// dlerror();
 		__underlying_malloc = (void*(*)(size_t)) fake_dlsym(RTLD_DEFAULT, "__real_malloc");
-		if (!__underlying_malloc) __underlying_malloc = (void*(*)(size_t)) fake_dlsym(RTLD_NEXT, "malloc");
-		if (!__underlying_malloc) fail(malloc);
+		if (!__underlying_malloc || __underlying_malloc == (void*) -1) __underlying_malloc = (void*(*)(size_t)) fake_dlsym(RTLD_NEXT, "malloc");
+		if (!__underlying_malloc || __underlying_malloc == (void*) -1) fail(malloc);
 		__underlying_free = (void(*)(void*)) fake_dlsym(RTLD_DEFAULT, "__real_free");
-		if (!__underlying_free) __underlying_free = (void(*)(void*)) fake_dlsym(RTLD_NEXT, "free");
-		if (!__underlying_free) fail(free);
+		if (!__underlying_free || __underlying_free == (void*) -1) __underlying_free = (void(*)(void*)) fake_dlsym(RTLD_NEXT, "free");
+		if (!__underlying_free || __underlying_free == (void*) -1) fail(free);
 		__underlying_memalign = (void*(*)(size_t, size_t)) fake_dlsym(RTLD_DEFAULT, "__real_memalign");
-		if (!__underlying_memalign) __underlying_memalign = (void*(*)(size_t, size_t)) fake_dlsym(RTLD_NEXT, "memalign");
-		/* Don't fail for memalign -- it's optional. */
+		if (!__underlying_memalign || __underlying_memalign == (void*) -1) __underlying_memalign = (void*(*)(size_t, size_t)) fake_dlsym(RTLD_NEXT, "memalign");
+		if (__underlying_memalign == (void*) -1) __underlying_memalign = 0; /* Don't fail for memalign -- it's optional. */
 		__underlying_realloc = (void*(*)(void*, size_t)) fake_dlsym(RTLD_DEFAULT, "__real_realloc");
-		if (!__underlying_realloc) __underlying_realloc = (void*(*)(void*, size_t)) fake_dlsym(RTLD_NEXT, "realloc");
-		if (!__underlying_realloc) fail(realloc);
+		if (!__underlying_realloc || __underlying_realloc == (void*) -1) __underlying_realloc = (void*(*)(void*, size_t)) fake_dlsym(RTLD_NEXT, "realloc");
+		if (!__underlying_realloc || __underlying_realloc == (void*) -1) fail(realloc);
 		__underlying_calloc = (void*(*)(size_t, size_t)) fake_dlsym(RTLD_DEFAULT, "__real_calloc");
-		if (!__underlying_calloc) __underlying_calloc = (void*(*)(size_t, size_t)) fake_dlsym(RTLD_NEXT, "calloc");
-		if (!__underlying_calloc) fail(calloc);
+		if (!__underlying_calloc || __underlying_calloc == (void*) -1) __underlying_calloc = (void*(*)(size_t, size_t)) fake_dlsym(RTLD_NEXT, "calloc");
+		if (!__underlying_calloc || __underlying_calloc == (void*) -1) fail(calloc);
 		__underlying_posix_memalign = (int(*)(void**, size_t, size_t)) fake_dlsym(RTLD_DEFAULT, "__real_posix_memalign");
-		if (!__underlying_posix_memalign) __underlying_posix_memalign = (int(*)(void**, size_t, size_t)) fake_dlsym(RTLD_NEXT, "posix_memalign");
-		if (!__underlying_posix_memalign) fail(posix_memalign);
+		if (!__underlying_posix_memalign || __underlying_posix_memalign == (void*) -1) __underlying_posix_memalign = (int(*)(void**, size_t, size_t)) fake_dlsym(RTLD_NEXT, "posix_memalign");
+		if (!__underlying_posix_memalign || __underlying_posix_memalign == (void*) -1) fail(posix_memalign);
 		__underlying_malloc_usable_size = (size_t(*)(void*)) fake_dlsym(RTLD_DEFAULT, "__real_malloc_usable_size");
-		if (!__underlying_malloc_usable_size) __underlying_malloc_usable_size = (size_t(*)(void*)) fake_dlsym(RTLD_NEXT, "malloc_usable_size");
-		if (!__underlying_malloc_usable_size) fail(malloc_usable_size);
+		if (!__underlying_malloc_usable_size || __underlying_malloc_usable_size == (void*) -1) __underlying_malloc_usable_size = (size_t(*)(void*)) fake_dlsym(RTLD_NEXT, "malloc_usable_size");
+		if (!__underlying_malloc_usable_size || __underlying_malloc_usable_size == (void*) -1) fail(malloc_usable_size);
 #undef fail
 	}
 }
