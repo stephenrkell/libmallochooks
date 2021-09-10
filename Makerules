@@ -3,60 +3,32 @@ BUILD_MALLOC_HOOKS ?= noop
 # must have exactly one method!
 MALLOC_HOOKS_METHOD ?= preload
 
+# What's supposed to happen: we generate one .o file for each named set of hooks
+# (e.g. "noop" above), each specialised for "method". That .o file is built from
+# one copy of malloc_hook_stubs_${method}.c *per hook* -- each copy is compiled
+# with different CFLAGS so that it calls the next in the chain, or the "terminal"
+# hook if there is no next.
+# PROBLEM: we can't generate .o files amenable to LTO if we use the defsym trick.
+# So we generate a .c file and emit the LDFLAGS for the corresponding .o file.
+# PROBLEM: if a client wants to use more than one method, they probably don't
+# want to include this Makerules file, but instead use $(MAKE) -f to "call" it,
+# but then we can't set LDFLAGS in the including makefile.
+
 # add the path of this makefile to vpath
 # (since we assume we're being included from the build dir)
 THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 
+# we no longer provide rules for building .o files, owing to the LTO
+# problem mentioned below. We only build .c files, and define appropriate LDFLAGS.
 vpath %.c  $(dir $(realpath $(THIS_MAKEFILE)))
-vpath %.o  $(dir $(realpath $(THIS_MAKEFILE)))
-vpath %.a  $(dir $(realpath $(THIS_MAKEFILE)))
-vpath %.so $(dir $(realpath $(THIS_MAKEFILE)))
-
 CFLAGS += -I$(dir $(realpath $(THIS_MAKEFILE)))
-
-ifeq ($(FAST_CFLAGS),)
-#FAST_CFLAGS += -O -flto -ffat-lto-objects
-FAST_CFLAGS += -O
-endif
-ifeq ($(NON_FAST_CFLAGS),)
-NON_FAST_CFLAGS += -O0
-endif
-
-$(warning CFLAGS is $(CFLAGS))
-
-%_fast.o: %.c
-	$(CC) $(CFLAGS) -c -o "$@" "$<"
-
-# object files for the individual hooks can be built fast- or non-fast
-.SECONDARY: $(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS))
-$(patsubst %,%_hooks_fast.o,$(BUILD_MALLOC_HOOKS)): CFLAGS += $(FAST_CFLAGS)
-$(patsubst %,%_hooks.o,$(BUILD_MALLOC_HOOKS)): CFLAGS += $(NON_FAST_CFLAGS)
-
-# the object file for the overall ensemble can also be built fast- or non-fast
-.SECONDARY: malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.c
-malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.o: CFLAGS += $(FAST_CFLAGS)
-malloc_hook_stubs_$(MALLOC_HOOKS_METHOD).o: CFLAGS += $(NON_FAST_CFLAGS)
 
 # building the actual hooks
 # FIXME: iterative version for multiple hooks
-# FIXME: these rules are incompatible with link-time optimisations (lto),
-# at least for current GNU gcc/binutils implementations. So instead we
-# have to use the preprocessor to define __next_hook_*.
-#malloc_hooks_$(MALLOC_HOOKS_METHOD).o: malloc_hook_stubs_$(MALLOC_HOOKS_METHOD).o $(patsubst %.c,%.o,$(patsubst %,%_hooks.c,$(BUILD_MALLOC_HOOKS)))
-#	$(LD) -o "$@" -r malloc_hook_stubs_$(MALLOC_HOOKS_METHOD).o  \
-#	--defsym __next_hook_malloc=__terminal_hook_malloc \
-#	--defsym __next_hook_realloc=__terminal_hook_realloc \
-#	--defsym __next_hook_free=__terminal_hook_free \
-#	--defsym __next_hook_memalign=__terminal_hook_memalign \
-#	$(patsubst %.c,%.o,$(patsubst %,%_hooks.c,$(BUILD_MALLOC_HOOKS)))
-#malloc_hooks_$(MALLOC_HOOKS_METHOD)_fast.o: malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.o $(patsubst %_fast.c,%_fast.o,$(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS)))
-#	$(LD) -o "$@" -r malloc_hook_stubs_$(MALLOC_HOOKS_METHOD)_fast.o  \
-#	--defsym __next_hook_init=__terminal_hook_init \
-#	--defsym __next_hook_malloc=__terminal_hook_malloc \
-#	--defsym __next_hook_realloc=__terminal_hook_realloc \
-#	--defsym __next_hook_free=__terminal_hook_free \
-#	--defsym __next_hook_memalign=__terminal_hook_memalign \
-#	$(patsubst %_fast.c,%_fast.o,$(patsubst %,%_hooks_fast.c,$(BUILD_MALLOC_HOOKS)))
+# NOTE that using --defsym to plumb together __next_hook*, which is what we'd like,
+# is incompatible with link-time optimisations (LTO), at least for current gcc/binutils
+# implementations of LTO. So instead we have to use the preprocessor to define __next_hook_*.
+# So we don't define how to build .o files at all.
 
 comma := ,
 
@@ -77,7 +49,8 @@ ifeq ($(MALLOC_HOOKS_METHOD),wrap)
 # Modify the including Makefile's LDFLAGS so that 
 # - malloc and friends are --wrap'ped
 # - for good measure (FIXME: why?) define __real_* to be aliases of the unprefixed
-# - (recall: --wrap only affects the undefined symbols in any given linker input file)
+# - (recall: --wrap only affects the undefined symbols in any given linker input file,
+#    so normally the linker output never actually contains a symbol called __real_*.)
 
 LDFLAGS += $(prefix -Wl$(comma)--wrap$(comma),malloc calloc free realloc memalign posix_memalign)
 LDFLAGS += $(prefix -Wl$(comma),\
@@ -96,12 +69,16 @@ ifeq ($(MALLOC_HOOKS_METHOD),preload)
 
 # don't modify the linker flags, 
 # but DO rename our [first] hooks to their rightful names.
-# How? 
+# How? FIXME: we don't support chaining multiple hooksets yet.
+# NOTE: we *do* use these preload hooks -- although this block is
+# empty, the preload case is functional. In liballocs, malloc et al
+# are defined in malloc_hook_stubs_preload.o.
 
 else
 ifeq ($(MALLOC_HOOKS_METHOD),glibc)
 
 # glibc implies building a preloadable library
+# -- hmm, glibc malloc hooks are pretty obsolete, so no impl provided
 
 endif # glibc
 endif # preload
