@@ -268,6 +268,11 @@ void * __terminal_hook_memalign(size_t boundary, size_t size, const void *caller
 
 /* FIXME: also override malloc_usable_size s.t. we divert queries about the
  * private buffer into early_malloc_usable_size. */
+/* FIXME: eliminate this.
+ * liballocs provides its own malloc_usable_size in preload.c, which
+ * demuxes either here or to an alloca-specific stack path.
+ * The real fix is to stop heap indexes (malloc, alloca, ...) from
+ * using the global malloc_usable_size. */
 size_t __mallochooks_malloc_usable_size(void *userptr);
 size_t malloc_usable_size(void *userptr) __attribute__((weak,alias("__mallochooks_malloc_usable_size")));
 size_t __mallochooks_malloc_usable_size(void *userptr)
@@ -377,7 +382,18 @@ is_libdl_or_ldso_call(const void *caller)
  * handled, and probably shouldn't be calling __private_malloc
  * ourselves. Can we say it's a bug if there's a reentrant call?
  * i.e. the hook_malloc logic is responsible for not calling back
- * into (this set of) hooks. */
+ * into (this set of) hooks.
+ *
+ * Indeed in liballocs we now have figured out a way to avoid reentrant
+ * mallocs. We have a private malloc that never does mmap, eliminating
+ * the cyclic path that would otherwise lead us to try to malloc
+ * reentrantly. So, arguably the whole reentrancy checking stuff can
+ * just be deleted. I'm reluctant to do that because it has been
+ * useful thus far. Perhaps the right thing to do is to detect the
+ * reentrancy and abort?
+ *
+ * What about self-calls and libdl/ld.so-calls? Is it reasonable to
+ * sidetrack those? */
 static __thread _Bool we_are_active;
 
 /* These are our actual hook stubs. */
