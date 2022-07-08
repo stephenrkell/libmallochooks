@@ -89,4 +89,7 @@ void * __terminal_hook_memalign(size_t boundary, size_t size, const void *caller
 }
 
 #include "wrappers.h"
-DEFINE_WRAPPERS(__wrap_, hidden)
+#ifndef WRAPDL_WRAPPER_PREFIX
+#define WRAPDL_WRAPPER_PREFIX __wrap_
+#endif
+DEFINE_WRAPPERS(WRAPDL_WRAPPER_PREFIX, hidden)
