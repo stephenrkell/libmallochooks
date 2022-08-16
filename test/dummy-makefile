@@ -1,0 +1,3 @@
+# link this file from each test case's dir, to remind clueless users (i.e. future me)
+# that it's deliberate that each case doesn't have its own makefile
+$(error You need to use make -f to point at the 'test' directory's Makefile)

@@ -45,3 +45,13 @@ cake-generated.mk$
 .*\.o\.hpp$
 .*-moved$
 ^.*_fast\.c$
+/mallochooks\.mk$
+^test/malloc-in-dso/exe$
+^test/malloc-in-exe/debug-sym2dyn\.sh$
+^test/malloc-in-exe/exe$
+^test/malloc-in-exe/exe\.gdbscript$
+^test/malloc-in-exe/make\.log$
+^test/malloc-in-exe/malloc\.c$
+^test/malloc-in-libc/exe$
+^test/testconfig\.mk$
+^test/.*/malloc\.c$

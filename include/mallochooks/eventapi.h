@@ -1,9 +1,11 @@
-#ifndef ALLOC_EVENTS_H_
-#define ALLOC_EVENTS_H_
+#ifndef MALLOCHOOKS_EVENTAPI_H_
+#define MALLOCHOOKS_EVENTAPI_H_
 
 /* By default, event handlers are assumed to be in the same 
  * dynamic object, so that link-time optimisation can take
- * effect by assuming they're never overridden. */
+ * effect by assuming they're never overridden. By making
+ * the declarations (UNDs) hidden we prevent them binding to
+ * out-of-DSO definitions. */
 #ifndef ALLOC_EVENT_ATTRIBUTES
 #define ALLOC_EVENT_ATTRIBUTES __attribute__((visibility("hidden")))
 #endif

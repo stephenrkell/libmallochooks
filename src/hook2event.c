@@ -3,28 +3,42 @@
 #include <stdio.h>    /* for stderr */
 #include <assert.h>
 
+/* Declare hooks twice over: the 'next' hooks
+ * and our hooks. Our hooks are *always* unprefixed;
+ * use -Dhook_malloc=... on the command line to
+ * change the identifiers. */
 #undef HOOK_PREFIX
-#include "hook_protos.h"
-
+#include "mallochooks/hookapi.h"
+// FIXME: really want pushdef and popdef here
 #define HOOK_PREFIX(i) __next_hook_ ## i
-#include "hook_protos.h"
+#include "mallochooks/hookapi.h"
 #undef HOOK_PREFIX
 
+/* By default, event handler function definitions are hidden */
 #define HIDDEN __attribute__((visibility("hidden")))
 #ifndef ALLOC_EVENT_ATTRIBUTES
 #define ALLOC_EVENT_ATTRIBUTES HIDDEN
 #endif
-#include "alloc_events.h"
+#include "mallochooks/eventapi.h"
 
-/* Avoid an implicit declaration of this helper. */
+/* Avoid an implicit declaration of this helper.
+ * Again, a different malloc_usable_size() function
+ * has to be -D'd on the command line. */
 size_t malloc_usable_size(void *);
 
+/* We can translate between 'alloc' and 'user' pointers,
+ * if instrumentation is adding a header. However, in
+ * practice trailers are more robust. */
 #ifndef ALLOCPTR_TO_USERPTR
 #define ALLOCPTR_TO_USERPTR(a) (a)
+#else
+#warning "alloc <-> user translation is not robust"
 #endif
 
 #ifndef USERPTR_TO_ALLOCPTR
 #define USERPTR_TO_ALLOCPTR(u) (u)
+#else
+#warning "alloc <-> user translation is not robust"
 #endif
 
 void hook_init(void)

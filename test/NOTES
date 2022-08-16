@@ -1,0 +1,25 @@
+What are our basic test cases?
+
+Let's use the Cartesian product of the following variables.
+
+- where is the malloc?  { built exe, built DSO, libc DSO }
+
+- where is the caller?  { same obj,  other obj, libc (use strdup) }
+
+How do we lump these?
+
+- each test case has one malloc, all three callers... cases differ on where the
+malloc is
+
+- the test case is just to run some code in the exe, some code in
+the DSO, and some code that calls the C library such that it will
+call malloc from all three places
+
+- ideally we would do a round-robin, though no libc function will free (except
+__libc_free which we *don't* want)
+
+More advanced test cases:
+
++ maybe cleverer cases with aliases, e.g. model __libc_malloc
+
++ test hook composition
