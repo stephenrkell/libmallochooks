@@ -3,16 +3,18 @@
 #include <stdio.h>    /* for stderr */
 #include <assert.h>
 
-/* Declare hooks twice over: the 'next' hooks
- * and our hooks. Our hooks are *always* unprefixed;
+#include "mallochooks/hookapi.h" /* Now the user's called hooks have been declared */
+
+/* Ideally we'd declare hooks twice over: the 'next' hooks
+ * and our hooks. Our hooks are *always* hook_* in this file;
  * use -Dhook_malloc=... on the command line to
- * change the identifiers. */
-#undef HOOK_PREFIX
-#include "mallochooks/hookapi.h"
-// FIXME: really want pushdef and popdef here
-#define HOOK_PREFIX(i) __next_hook_ ## i
-#include "mallochooks/hookapi.h"
-#undef HOOK_PREFIX
+ * change the identifiers.
+ *
+ * However, this is impossible without clobbering the invoked-with
+ * HOOK_PREFIX macro.
+ * Instead we simply don't prototype our hook functions in this file;
+ * there's no need. Clients can generate the prototypes they want,
+ * whereas we can't. */
 
 /* By default, event handler function definitions are hidden */
 #define HIDDEN __attribute__((visibility("hidden")))
@@ -45,7 +47,7 @@ void hook_init(void)
 {
 	// chain here
 	ALLOC_EVENT(post_init)();
-	__next_hook_init();
+	HOOK_PREFIX(init)();
 }
 
 void *hook_malloc(size_t size, const void *caller)
@@ -59,7 +61,7 @@ void *hook_malloc(size_t size, const void *caller)
 	ALLOC_EVENT(pre_alloc)(&modified_size, &modified_alignment, caller);
 	assert(modified_alignment == sizeof (void *));
 	
-	result = __next_hook_malloc(modified_size, caller);
+	result = HOOK_PREFIX(malloc)(modified_size, caller);
 	
 	if (result) ALLOC_EVENT(post_successful_alloc)(result, modified_size, modified_alignment, 
 			size, sizeof (void*), caller);
@@ -78,7 +80,7 @@ void hook_free(void *userptr, const void *caller)
 	#endif 
 	if (userptr != NULL && ALLOC_EVENT(pre_nonnull_free)(userptr, malloc_usable_size(allocptr))) return;
 	
-	__next_hook_free(allocptr, caller);
+	HOOK_PREFIX(free)(allocptr, caller);
 	
 	if (userptr != NULL) ALLOC_EVENT(post_nonnull_free)(userptr);
 	#ifdef TRACE_MALLOC_HOOKS
@@ -96,7 +98,7 @@ void *hook_memalign(size_t alignment, size_t size, const void *caller)
 	#endif
 	ALLOC_EVENT(pre_alloc)(&modified_size, &modified_alignment, caller);
 	
-	result = __next_hook_memalign(modified_alignment, modified_size, caller);
+	result = HOOK_PREFIX(memalign)(modified_alignment, modified_size, caller);
 	
 	if (result) ALLOC_EVENT(post_successful_alloc)(result, modified_size, modified_alignment, size, alignment, caller);
 	#ifdef TRACE_MALLOC_HOOKS
@@ -148,7 +150,7 @@ void *hook_realloc(void *userptr, size_t size, const void *caller)
 		assert(modified_alignment == sizeof (void *));
 	}
 
-	result_allocptr = __next_hook_realloc(allocptr, modified_size, caller);
+	result_allocptr = HOOK_PREFIX(realloc)(allocptr, modified_size, caller);
 	
 	if (userptr == NULL)
 	{

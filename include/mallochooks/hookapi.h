@@ -9,7 +9,7 @@
 #endif
 
 #ifndef HOOK_ATTRIBUTES
-#define HOOK_ATTRIBUTES __attribute__((visibility("hidden")))
+#define HOOK_ATTRIBUTES(i) __attribute__((visibility("hidden")))
 #endif
 
 /* The hook API is like the malloc API except
@@ -19,10 +19,10 @@
  * - extra init() function.
  */
 
-void HOOK_PREFIX(init)(void) HOOK_ATTRIBUTES;
-void *HOOK_PREFIX(malloc)(size_t size, const void *caller) HOOK_ATTRIBUTES;
-void HOOK_PREFIX(free)(void *ptr, const void *caller) HOOK_ATTRIBUTES;
-void *HOOK_PREFIX(realloc)(void *ptr, size_t size, const void *caller) HOOK_ATTRIBUTES;
-void *HOOK_PREFIX(memalign)(size_t alignment, size_t size, const void *caller) HOOK_ATTRIBUTES;
+void HOOK_PREFIX(init)(void) HOOK_ATTRIBUTES(init);
+void *HOOK_PREFIX(malloc)(size_t size, const void *caller) HOOK_ATTRIBUTES(malloc);
+void HOOK_PREFIX(free)(void *ptr, const void *caller) HOOK_ATTRIBUTES(free);
+void *HOOK_PREFIX(realloc)(void *ptr, size_t size, const void *caller) HOOK_ATTRIBUTES(realloc);
+void *HOOK_PREFIX(memalign)(size_t alignment, size_t size, const void *caller) HOOK_ATTRIBUTES(memalign);
 
 #endif
