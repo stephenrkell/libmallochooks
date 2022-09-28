@@ -1,5 +1,5 @@
-#ifndef MALLOCHOOKS_USERAPI_H_
-#define MALLOCHOOKS_USERAPI_H_
+/* No #include guard because we're designed to be safely included >1 time */
+
 /* We support a common prefix for the malloc-family functions. */
 #ifndef MALLOC_PREFIX
 #include <stdlib.h>
@@ -17,6 +17,4 @@ void *MALLOC_PREFIX(realloc)(void *ptr, size_t size);
 void *MALLOC_PREFIX(memalign)(size_t boundary, size_t size);
 int MALLOC_PREFIX(posix_memalign)(void **memptr, size_t alignment, size_t size);
 size_t MALLOC_PREFIX(malloc_usable_size)(void *ptr);
-#endif
-
 #endif

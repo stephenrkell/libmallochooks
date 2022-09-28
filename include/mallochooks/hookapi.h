@@ -1,5 +1,4 @@
-#ifndef MALLOCHOOKS_HOOKAPI_
-#define MALLOCHOOKS_HOOKAPI_
+/* No #include guard because we're designed to be safely included >1 time */
 
 #include <stdlib.h>
 
@@ -24,5 +23,3 @@ void *HOOK_PREFIX(malloc)(size_t size, const void *caller) HOOK_ATTRIBUTES(mallo
 void HOOK_PREFIX(free)(void *ptr, const void *caller) HOOK_ATTRIBUTES(free);
 void *HOOK_PREFIX(realloc)(void *ptr, size_t size, const void *caller) HOOK_ATTRIBUTES(realloc);
 void *HOOK_PREFIX(memalign)(size_t alignment, size_t size, const void *caller) HOOK_ATTRIBUTES(memalign);
-
-#endif
