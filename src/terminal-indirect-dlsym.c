@@ -53,9 +53,12 @@ static __thread _Bool we_are_active;
 #ifndef MALLOC_PREFIX
 #define MALLOC_PREFIX(m) m
 #endif
+#ifndef MALLOC_DLSYM_TARGET
+#define MALLOC_DLSYM_TARGET RTLD_NEXT
+#endif
 #define GET_UNDERLYING(ret_t, m, argts...) \
 	static ret_t (*underlying_ ## m )( argts ); \
-	if (!underlying_ ## m) underlying_ ## m = dlsym_nomalloc(RTLD_NEXT, stringifx(MALLOC_PREFIX(m)) ); \
+	if (!underlying_ ## m) underlying_ ## m = dlsym_nomalloc(MALLOC_DLSYM_TARGET, stringifx(MALLOC_PREFIX(m)) ); \
 	if (!underlying_ ## m  || underlying_ ## m == (void*)-1) abort();
 
 HIDDEN
@@ -97,6 +100,6 @@ void * __terminal_hook_memalign(size_t boundary, size_t size, const void *caller
 	we_are_active = 1;
 	GET_UNDERLYING(void*, memalign, size_t, size_t);
 	void *ret = underlying_memalign(boundary, size);
-	we_are_active = 1;
+	we_are_active = 0;
 	return ret;
 }
