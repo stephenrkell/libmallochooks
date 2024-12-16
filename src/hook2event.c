@@ -3,7 +3,11 @@
 #include <stdio.h>    /* for stderr */
 #include <assert.h>
 
-#include "mallochooks/hookapi.h" /* Now the user's called hooks have been declared */
+/* We want to declare the user's called hooks. But
+ * this is a problem if the callee is a function pointer
+ * not a direct-called function. We will blithely declare a
+ * plain function here. */
+#include "mallochooks/hookapi.h"
 
 /* Ideally we'd declare hooks twice over: the 'next' hooks
  * and our hooks. Our hooks are *always* hook_* in this file;

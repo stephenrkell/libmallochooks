@@ -14,7 +14,9 @@
 #include "mallochooks/hookapi.h"
 
 /* Also prototype the 'real' malloc itself. */
-#define MALLOC_PREFIX(x) __real_ ## x  /* FIXME: is this wise? */
+#ifndef MALLOC_PREFIX
+#define MALLOC_PREFIX(x) __real_ ## x
+#endif
 #include "mallochooks/userapi.h"
 
 void __terminal_hook_init(void) __attribute__((visibility("hidden")));
