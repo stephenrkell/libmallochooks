@@ -9,16 +9,17 @@
  * plain function here. */
 #include "mallochooks/hookapi.h"
 
-/* Ideally we'd declare hooks twice over: the 'next' hooks
- * and our hooks. Our hooks are *always* hook_* in this file;
- * use -Dhook_malloc=... on the command line to
- * change the identifiers.
+/* Ideally we'd declare hooks twice over: the 'next' hooks and
+ * our hooks. However, this is impossible without clobbering the
+ * invoked-with HOOK_PREFIX macro.
  *
- * However, this is impossible without clobbering the invoked-with
- * HOOK_PREFIX macro.
  * Instead we simply don't prototype our hook functions in this file;
  * there's no need. Clients can generate the prototypes they want,
- * whereas we can't. */
+ * whereas we can't.
+ *
+ * Our hooks are *always* hook_* in this file; use -Dhook_malloc=... on
+ * the command line to change the identifiers.
+ */
 
 /* By default, event handler function definitions are hidden */
 #define HIDDEN __attribute__((visibility("hidden")))
