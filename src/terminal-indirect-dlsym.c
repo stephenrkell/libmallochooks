@@ -13,8 +13,19 @@
 
 #include <errno.h>
 
+/* FIXME: this file subsumes terminal-direct.c, so we should replace that
+ * with this (and some CPPFLAGS).
+ *
+ * Specifically, that file is just this one where
+ * ABORT_ON_REENTRANCY is a no-op and
+ * GET_UNDERLYING expands to a hidden extern prototype aliasing the real symname. */
+
+#ifndef OUR_HOOK
+#define OUR_HOOK(m) __terminal_hook_ ## m
+#endif
+
 /* Prototype the __terminal_hook_* functions. */
-#define HOOK_PREFIX(i) __terminal_hook_ ## i
+#define HOOK_PREFIX(i) OUR_HOOK(i)
 #include "mallochooks/hookapi.h"
 
 #define stringify(cond) #cond
@@ -34,7 +45,7 @@
  * guarantee that a reentrant malloc isn't paired with a non-reentrant
  * free, or vice-versa. In liballocs, with early_malloc we used to get
  * around this because we could dynamically identify early_malloc's chunks,
- * but how do you know how much space yur early malloc pool needs? We then
+ * but how do you know how much space your early malloc pool needs? We then
  * got bugs where a special private malloc exhausted its initial arena and
  * suddenly we didn't recognise its newly mmap'd chunks. Nightmare....)
  *
@@ -100,6 +111,16 @@ void * __terminal_hook_memalign(size_t boundary, size_t size, const void *caller
 	we_are_active = 1;
 	GET_UNDERLYING(void*, memalign, size_t, size_t);
 	void *ret = underlying_memalign(boundary, size);
+	we_are_active = 0;
+	return ret;
+}
+HIDDEN
+size_t __terminal_hook_malloc_usable_size(void * ptr)
+{
+	ABORT_ON_REENTRANCY;
+	we_are_active = 1;
+	GET_UNDERLYING(size_t, malloc_usable_size, void*);
+	size_t ret = underlying_malloc_usable_size(ptr);
 	we_are_active = 0;
 	return ret;
 }

@@ -3,23 +3,27 @@
 #include <stdio.h>    /* for stderr */
 #include <assert.h>
 
-/* We want to declare the user's called hooks. But
+#include "mallochooks/userapi.h"
+
+/* Our hooks default to hook_*.
+ * FIXME: we used to tell clients to compile with -Dhook_malloc=xxx here
+ * to change our hook names. Is any client still doing this? Check liballocs. */
+#ifndef OUR_HOOK
+#define OUR_HOOK(m) hook_ ## m
+#endif
+
+#ifndef NEXT_HOOK
+#define NEXT_HOOK(m) HOOK_PREFIX(m)
+#endif
+
+/* We want to declare the next-called hooks. But
  * this is a problem if the callee is a function pointer
  * not a direct-called function. We will blithely declare a
  * plain function here. */
+#if !defined(HOOK_PREFIX) && defined(NEXT_HOOK)
+#define HOOK_PREFIX(m) NEXT_HOOK(m)
+#endif
 #include "mallochooks/hookapi.h"
-
-/* Ideally we'd declare hooks twice over: the 'next' hooks and
- * our hooks. However, this is impossible without clobbering the
- * invoked-with HOOK_PREFIX macro.
- *
- * Instead we simply don't prototype our hook functions in this file;
- * there's no need. Clients can generate the prototypes they want,
- * whereas we can't.
- *
- * Our hooks are *always* hook_* in this file; use -Dhook_malloc=... on
- * the command line to change the identifiers.
- */
 
 /* By default, event handler function definitions are hidden */
 #define HIDDEN __attribute__((visibility("hidden")))
@@ -27,11 +31,6 @@
 #define ALLOC_EVENT_ATTRIBUTES HIDDEN
 #endif
 #include "mallochooks/eventapi.h"
-
-/* Avoid an implicit declaration of this helper.
- * Again, a different malloc_usable_size() function
- * has to be -D'd on the command line. */
-size_t malloc_usable_size(void *);
 
 /* We can translate between 'alloc' and 'user' pointers,
  * if instrumentation is adding a header. However, in
@@ -48,14 +47,14 @@ size_t malloc_usable_size(void *);
 #warning "alloc <-> user translation is not robust"
 #endif
 
-void hook_init(void)
+void OUR_HOOK(init)(void)
 {
 	// chain here
 	ALLOC_EVENT(post_init)();
-	HOOK_PREFIX(init)();
+	NEXT_HOOK(init)();
 }
 
-void *hook_malloc(size_t size, const void *caller)
+void *OUR_HOOK(malloc)(size_t size, const void *caller)
 {
 	void *result;
 	#ifdef TRACE_MALLOC_HOOKS
@@ -66,7 +65,7 @@ void *hook_malloc(size_t size, const void *caller)
 	ALLOC_EVENT(pre_alloc)(&modified_size, &modified_alignment, caller);
 	assert(modified_alignment == sizeof (void *));
 	
-	result = HOOK_PREFIX(malloc)(modified_size, caller);
+	result = NEXT_HOOK(malloc)(modified_size, caller);
 	
 	if (result) ALLOC_EVENT(post_successful_alloc)(result, modified_size, modified_alignment, 
 			size, sizeof (void*), caller);
@@ -77,15 +76,24 @@ void *hook_malloc(size_t size, const void *caller)
 	return ALLOCPTR_TO_USERPTR(result);
 }
 
-void hook_free(void *userptr, const void *caller)
+void OUR_HOOK(free)(void *userptr, const void *caller)
 {
 	void *allocptr = USERPTR_TO_ALLOCPTR(userptr);
 	#ifdef TRACE_MALLOC_HOOKS
 	if (userptr != NULL) fprintf(stderr, "freeing chunk at %p (userptr %p)\n", allocptr, userptr);
-	#endif 
-	if (userptr != NULL && ALLOC_EVENT(pre_nonnull_free)(userptr, malloc_usable_size(allocptr))) return;
+	#endif
+	/* FIXME: which malloc_usable_size should we use here? */
+	if (userptr != NULL)
+	{
+		size_t size = NEXT_HOOK(malloc_usable_size)(allocptr);
+		if (ALLOC_EVENT(pre_nonnull_free)(userptr, size))
+		{
+			/* the pre-hook can 'cancel' the free by returning nonzero */
+			return;
+		}
+	}
 	
-	HOOK_PREFIX(free)(allocptr, caller);
+	NEXT_HOOK(free)(allocptr, caller);
 	
 	if (userptr != NULL) ALLOC_EVENT(post_nonnull_free)(userptr);
 	#ifdef TRACE_MALLOC_HOOKS
@@ -93,7 +101,7 @@ void hook_free(void *userptr, const void *caller)
 	#endif
 }
 
-void *hook_memalign(size_t alignment, size_t size, const void *caller)
+void *OUR_HOOK(memalign)(size_t alignment, size_t size, const void *caller)
 {
 	void *result;
 	size_t modified_size = size;
@@ -103,7 +111,7 @@ void *hook_memalign(size_t alignment, size_t size, const void *caller)
 	#endif
 	ALLOC_EVENT(pre_alloc)(&modified_size, &modified_alignment, caller);
 	
-	result = HOOK_PREFIX(memalign)(modified_alignment, modified_size, caller);
+	result = NEXT_HOOK(memalign)(modified_alignment, modified_size, caller);
 	
 	if (result) ALLOC_EVENT(post_successful_alloc)(result, modified_size, modified_alignment, size, alignment, caller);
 	#ifdef TRACE_MALLOC_HOOKS
@@ -113,7 +121,7 @@ void *hook_memalign(size_t alignment, size_t size, const void *caller)
 }
 
 
-void *hook_realloc(void *userptr, size_t size, const void *caller)
+void *OUR_HOOK(realloc)(void *userptr, size_t size, const void *caller)
 {
 	void *result_allocptr;
 	void *allocptr = USERPTR_TO_ALLOCPTR(userptr);
@@ -133,8 +141,9 @@ void *hook_realloc(void *userptr, size_t size, const void *caller)
 	else if (size == 0)
 	{
 		/* We behave like free(). */
-		old_usable_size = malloc_usable_size(allocptr);
-		ALLOC_EVENT(pre_nonnull_free)(userptr, old_usable_size);
+		old_usable_size = NEXT_HOOK(malloc_usable_size)(allocptr);
+		/* The free hook can 'cancel' the free by returning non-zero. */
+		if (ALLOC_EVENT(pre_nonnull_free)(userptr, old_usable_size)) return NULL;
 	}
 	else
 	{
@@ -142,7 +151,7 @@ void *hook_realloc(void *userptr, size_t size, const void *caller)
 		 * original block untouched. 
 		 * If it changes, we'll need to know the old usable size to access
 		 * the old trailer. */
-		old_usable_size = malloc_usable_size(allocptr);
+		old_usable_size = NEXT_HOOK(malloc_usable_size)(allocptr);
 		ALLOC_EVENT(pre_nonnull_nonzero_realloc)(userptr, size, caller);
 	}
 	
@@ -155,7 +164,7 @@ void *hook_realloc(void *userptr, size_t size, const void *caller)
 		assert(modified_alignment == sizeof (void *));
 	}
 
-	result_allocptr = HOOK_PREFIX(realloc)(allocptr, modified_size, caller);
+	result_allocptr = NEXT_HOOK(realloc)(allocptr, modified_size, caller);
 	
 	if (userptr == NULL)
 	{
@@ -179,4 +188,9 @@ void *hook_realloc(void *userptr, size_t size, const void *caller)
 			userptr, ALLOCPTR_TO_USERPTR(result_allocptr), size, modified_size);
 	#endif
 	return ALLOCPTR_TO_USERPTR(result_allocptr);
+}
+
+size_t OUR_HOOK(malloc_usable_size)(void *ptr)
+{
+	return NEXT_HOOK(malloc_usable_size)(ptr);
 }

@@ -23,3 +23,4 @@ void *HOOK_PREFIX(malloc)(size_t size, const void *caller) HOOK_ATTRIBUTES(mallo
 void HOOK_PREFIX(free)(void *ptr, const void *caller) HOOK_ATTRIBUTES(free);
 void *HOOK_PREFIX(realloc)(void *ptr, size_t size, const void *caller) HOOK_ATTRIBUTES(realloc);
 void *HOOK_PREFIX(memalign)(size_t alignment, size_t size, const void *caller) HOOK_ATTRIBUTES(memalign);
+size_t HOOK_PREFIX(malloc_usable_size)(void*) HOOK_ATTRIBUTES(malloc_usable_size);

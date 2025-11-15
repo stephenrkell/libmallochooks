@@ -12,6 +12,10 @@
 #define MALLOC_CALLER_EXPRESSION __builtin_return_address(0)
 #endif
 
+#ifndef MALLOC_PREFIX
+#define MALLOC_PREFIX(m) m
+#endif
+
 MALLOC_ATTRIBUTES
 void *MALLOC_PREFIX(malloc)(size_t size)
 {
@@ -58,4 +62,9 @@ int MALLOC_PREFIX(posix_memalign)(void **memptr, size_t alignment, size_t size)
 		*memptr = ret;
 		return 0;
 	}
+}
+MALLOC_ATTRIBUTES
+size_t MALLOC_PREFIX(malloc_usable_size)(void *ptr)
+{
+	return HOOK_PREFIX(malloc_usable_size)(ptr);
 }
