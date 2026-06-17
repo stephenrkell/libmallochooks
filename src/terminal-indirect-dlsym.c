@@ -52,8 +52,20 @@
  * To detect reentrancy, we share a single flag. This is because,
  * say, a calloc that gets hooked might end up calling malloc. We
  * still don't want reentrancy (e.g. we'll hang re-acquiring glibc
- * malloc's non-recursive arena mutex). */
-static __thread _Bool we_are_active;
+ * malloc's non-recursive arena mutex). 
+ */
+
+ /* This guard MUST use the initial-exec TLS model. With the default
+ * (global-dynamic) model, the very first read of this variable calls
+ * __tls_get_addr, which can lazily allocate the thread's DTV entry via malloc.
+ * 
+ * This reliably happens if the something (e.g LD_AUDIT) dlopen's a library that uses TLS.
+ * 
+ * initial-exec places the variable in the static TLS block.
+ * A read is a plain thread-pointer-relative access with no malloc. 
+ * Valid as long as we are loaded at program startup (via LD_PRELOAD) and never dlopen'd later.
+ */
+static __thread _Bool we_are_active __attribute__((tls_model("initial-exec")));
 #define ABORT_ON_REENTRANCY do { \
 	_Bool is_reentrant_call = we_are_active; \
 	if (is_reentrant_call) abort(); \
