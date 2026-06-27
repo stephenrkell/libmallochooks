@@ -65,7 +65,9 @@
  * A read is a plain thread-pointer-relative access with no malloc. 
  * Valid as long as we are loaded at program startup (via LD_PRELOAD) and never dlopen'd later.
  */
-static __thread _Bool we_are_active __attribute__((tls_model("initial-exec")));
+// HACK: This needs to be a hidden global and not a static to work around a gold bug
+__attribute__((visibility("hidden"), tls_model("initial-exec")))
+__thread _Bool we_are_active;
 #define ABORT_ON_REENTRANCY do { \
 	_Bool is_reentrant_call = we_are_active; \
 	if (is_reentrant_call) abort(); \
